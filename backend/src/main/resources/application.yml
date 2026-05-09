@@ -27,7 +27,7 @@ management:
 
 carhub:
   cors:
-    allowed-origins: ${CARHUB_CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
+    allowed-origins: ${CARHUB_CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174,http://localhost:8088,http://localhost:8089}
   security:
     provider-access-default-hours: 72
     jwt-secret: ${CARHUB_JWT_SECRET:dev-only-change-this-secret-before-production}

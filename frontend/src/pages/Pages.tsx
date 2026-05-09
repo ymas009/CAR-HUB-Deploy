@@ -198,9 +198,19 @@ export function HomePage() {
 export function ExplorePage() {
   const { items, loading, source } = usePackages();
   const [query, setQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+
+  const categories = useMemo(() => {
+    return Array.from(new Set(items.map(i => i.category))).filter(Boolean);
+  }, [items]);
+
   const filteredItems = useMemo(() => {
-    return items.filter((item) => matchesPackageQuery(item, query));
-  }, [items, query]);
+    return items.filter((item) => {
+      const matchesSearch = matchesPackageQuery(item, query);
+      const matchesCategory = !selectedCategory || item.category === selectedCategory;
+      return matchesSearch && matchesCategory;
+    });
+  }, [items, query, selectedCategory]);
 
   return (
     <div className="page padded-page">
@@ -215,7 +225,24 @@ export function ExplorePage() {
           <Search size={18} />
           <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search destinations, themes, or cities" aria-label="Search packages" />
           <button className="icon-button" aria-label="Filter packages"><SlidersHorizontal size={18} /></button>
-        </div>
+      </div>
+      <div className="category-filter-section">
+        <button 
+          className={`category-pill ${!selectedCategory ? 'active' : ''}`} 
+          onClick={() => setSelectedCategory(null)}
+        >
+          All Packages
+        </button>
+        {categories.map((cat) => (
+          <button 
+            key={cat} 
+            className={`category-pill ${selectedCategory === cat ? 'active' : ''}`} 
+            onClick={() => setSelectedCategory(cat)}
+          >
+            {cat}
+          </button>
+        ))}
+      </div>
       {source === "fallback" && (
         <div className="notice-panel">
           Showing sample packages because the backend is not reachable. You can still explore the UI safely.
@@ -231,7 +258,18 @@ export function ExplorePage() {
         </div>
       )}
       <div className="package-grid">
-        {!loading && filteredItems.map((item, index) => <PackageTile key={item.id} item={item} index={index} />)}
+        {!loading && filteredItems.map((item, index) => (
+          <div className="package-row-wrapper" key={item.id}>
+            <PackageTile item={item} index={index} />
+            {index < filteredItems.length - 1 && (
+              <div className="logo-divider-line">
+                <div className={`sliding-logo ${index % 2 === 0 ? 'slide-right' : 'slide-left'}`}>
+                  CARHUB
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -239,9 +277,11 @@ export function ExplorePage() {
 
 function PackageTile({ item, index }: { item: PackageCard; index: number }) {
   return (
-    <motion.article className="package-card" initial="hidden" animate="visible" whileHover={{ y: -8 }} variants={fadeUp} transition={{ delay: index * 0.08 }}>
-      <img src={item.image} alt={item.title} />
-      <div className="package-body">
+    <motion.div className="package-row-container" initial="hidden" animate="visible" variants={fadeUp} transition={{ delay: index * 0.08 }}>
+      <div className="package-image-card">
+        <img src={item.image} alt={item.title} />
+      </div>
+      <div className="package-formal-description">
         <div className="card-meta">
           <span>{item.category}</span>
           <span>{item.duration}</span>
@@ -254,7 +294,7 @@ function PackageTile({ item, index }: { item: PackageCard; index: number }) {
         </div>
         <div className="trust-note"><ShieldCheck size={15} />{item.trust}</div>
       </div>
-    </motion.article>
+    </motion.div>
   );
 }
 

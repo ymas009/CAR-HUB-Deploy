@@ -22,7 +22,8 @@ export function Layout() {
     <div className="app-shell">
       <header className="site-header">
         <NavLink to="/" className="brand" aria-label="CarHub home">
-          <img className="brand-logo" src="/carhub-logo.png" alt="CarHub" />
+          <span className="brand-mark">C</span>
+          <span className="brand-text">Car<span>Hub</span></span>
           <span className="admin-brand-badge">Admin</span>
         </NavLink>
         <nav className="desktop-nav" aria-label="Primary navigation">
