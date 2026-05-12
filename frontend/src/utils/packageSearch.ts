@@ -6,7 +6,7 @@ export function matchesPackageQuery(item: PackageCard, query: string) {
     return true;
   }
 
-  return [item.title, item.destination, item.category, item.accent].some((value) =>
+  return [item.place, item.highlights, item.category].some((value) =>
     value.toLowerCase().includes(normalized)
   );
 }

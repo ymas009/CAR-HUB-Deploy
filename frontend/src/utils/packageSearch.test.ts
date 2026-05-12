@@ -4,22 +4,19 @@ import { matchesPackageQuery } from "./packageSearch";
 
 const packageCard: PackageCard = {
   id: "pkg-1",
-  title: "Family Beach Escape",
-  destination: "Goa",
-  category: "Holiday",
-  duration: "4 days",
-  price: "From INR 24,000",
-  image: "/goa.jpg",
-  trust: "Company reviewed request flow",
-  accent: "Coastal stay with verified local execution"
+  place: "Lonavala",
+  category: "Hill Station",
+  distance_from_pune: "65 km",
+  travel_time: "1.5 hrs",
+  highlights: "Bhushi Dam, Tiger's Leap",
+  image: "/lonavala.jpg"
 };
 
 describe("matchesPackageQuery", () => {
-  it("matches by destination, category, title, and accent copy", () => {
-    expect(matchesPackageQuery(packageCard, "goa")).toBe(true);
-    expect(matchesPackageQuery(packageCard, "holiday")).toBe(true);
-    expect(matchesPackageQuery(packageCard, "beach")).toBe(true);
-    expect(matchesPackageQuery(packageCard, "verified")).toBe(true);
+  it("matches by place, category, and highlights", () => {
+    expect(matchesPackageQuery(packageCard, "lonavala")).toBe(true);
+    expect(matchesPackageQuery(packageCard, "hill station")).toBe(true);
+    expect(matchesPackageQuery(packageCard, "tiger")).toBe(true);
   });
 
   it("returns every package for an empty query", () => {

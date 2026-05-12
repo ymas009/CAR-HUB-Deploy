@@ -1,4 +1,5 @@
 import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 import {
   ArrowRight,
@@ -13,7 +14,8 @@ import {
   Search,
   ShieldCheck,
   SlidersHorizontal,
-  TicketCheck
+  TicketCheck,
+  X
 } from "lucide-react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { z } from "zod";
@@ -102,14 +104,12 @@ function getFieldErrors(error: z.ZodError): FieldErrors {
 function toCard(item: ApiPackage): PackageCard {
   return {
     id: item.id,
-    title: item.title,
-    destination: item.destination,
+    place: item.title,
+    distance_from_pune: "Distance TBD",
+    travel_time: `${item.durationDays} days`,
+    highlights: item.summary,
     category: item.category,
-    duration: `${item.durationDays} days`,
-    price: `From ${item.currency} ${Number(item.startingPrice).toLocaleString("en-IN")}`,
-    image: item.imageUrl,
-    trust: item.providerBusinessName ? `Approved provider: ${item.providerBusinessName}` : "Company reviewed request flow",
-    accent: item.summary
+    image: item.imageUrl
   };
 }
 
@@ -141,36 +141,61 @@ export function HomePage() {
   return (
     <div className="page">
       <section className="hero-section">
-        <div className="hero-media" aria-hidden="true" />
-        <motion.div className="hero-content" initial="hidden" animate="visible" variants={fadeUp} transition={{ duration: 0.55 }}>
-          <div className="eyebrow">
+        <div className="hero-media-wrapper">
+          <video 
+            className="hero-video" 
+            autoPlay 
+            loop 
+            muted 
+            playsInline
+            src="/hero-background.mp4"
+          />
+          <div className="hero-overlay" aria-hidden="true"></div>
+        </div>
+        <motion.div 
+          className="hero-content" 
+          initial="hidden" 
+          animate="visible" 
+          variants={{
+            hidden: { opacity: 0 },
+            visible: { 
+              opacity: 1,
+              transition: { staggerChildren: 0.15, delayChildren: 0.2 }
+            }
+          }}
+        >
+          <motion.div className="eyebrow" variants={fadeUp}>
             <ShieldCheck size={18} />
             Company-reviewed travel requests
-          </div>
-          <h1 className="hero-title">Company-approved travel packages with trusted support.</h1>
-          <p>Browse curated trips reviewed by CarHub.</p>
-          <div className="hero-actions">
+          </motion.div>
+          <motion.h1 className="hero-title" variants={fadeUp}>
+            Luxury Travel Reimagined.
+          </motion.h1>
+          <motion.p variants={fadeUp}>
+            Curated premium journeys from Pune to Maharashtra's most exclusive destinations.
+          </motion.p>
+          <motion.div className="hero-actions" variants={fadeUp}>
             <button className="primary-button large" onClick={() => navigate("/packages")}>
               Explore Packages
               <ArrowRight size={18} />
             </button>
             <button className="glass-button" onClick={() => navigate("/contact")}>Talk to Support</button>
-          </div>
-          <div className="trust-grid">
+          </motion.div>
+          <motion.div className="trust-grid" variants={fadeUp}>
             {["Admin approved", "Verified partners", "Travel support"].map((item) => (
               <span key={item}>
                 <CheckCircle2 size={16} />
                 {item}
               </span>
             ))}
-          </div>
+          </motion.div>
         </motion.div>
       </section>
 
       <section className="content-band">
         <div className="section-heading">
           <span className="eyebrow">Featured journeys</span>
-          <h2>Curated packages reviewed by CarHub.</h2>
+          <h2>Curated destinations starting from Pune.</h2>
         </div>
         <div className="package-grid">
           {items.slice(0, 4).map((item, index) => <PackageTile key={item.id} item={item} index={index} />)}
@@ -217,31 +242,41 @@ export function ExplorePage() {
       <div className="toolbar">
         <div>
           <span className="eyebrow">Explore</span>
-          <h1>Explore approved packages.</h1>
+          <h1>Explore destinations from <span>Pune.</span></h1>
         </div>
         
       </div>
       <div className="search-box">
-          <Search size={18} />
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search destinations, themes, or cities" aria-label="Search packages" />
-          <button className="icon-button" aria-label="Filter packages"><SlidersHorizontal size={18} /></button>
+          <Search size={20} />
+          <input 
+            value={query} 
+            onChange={(event) => setQuery(event.target.value)} 
+            placeholder="Search luxury destinations or trip themes..." 
+            aria-label="Search packages" 
+          />
+          {query && (
+            <button 
+              className="search-clear-btn" 
+              onClick={() => setQuery("")} 
+              aria-label="Clear search"
+            >
+              <X size={18} />
+            </button>
+          )}
+          <button className="icon-button" aria-label="Filter packages"><SlidersHorizontal size={20} /></button>
       </div>
       <div className="category-filter-section">
-        <button 
-          className={`category-pill ${!selectedCategory ? 'active' : ''}`} 
-          onClick={() => setSelectedCategory(null)}
+        <select 
+          className="category-select dropdown-filter" 
+          value={selectedCategory || ""} 
+          onChange={(e) => setSelectedCategory(e.target.value || null)}
+          aria-label="Filter by category"
         >
-          All Packages
-        </button>
-        {categories.map((cat) => (
-          <button 
-            key={cat} 
-            className={`category-pill ${selectedCategory === cat ? 'active' : ''}`} 
-            onClick={() => setSelectedCategory(cat)}
-          >
-            {cat}
-          </button>
-        ))}
+          <option value="">All Destinations</option>
+          {categories.map((cat) => (
+            <option key={cat} value={cat}>{cat}</option>
+          ))}
+        </select>
       </div>
       {source === "fallback" && (
         <div className="notice-panel">
@@ -276,25 +311,55 @@ export function ExplorePage() {
 }
 
 function PackageTile({ item, index }: { item: PackageCard; index: number }) {
+  const navigate = useNavigate();
+  const [isZoomed, setIsZoomed] = useState(false);
+
   return (
-    <motion.div className="package-row-container" initial="hidden" animate="visible" variants={fadeUp} transition={{ delay: index * 0.08 }}>
-      <div className="package-image-card">
-        <img src={item.image} alt={item.title} />
-      </div>
-      <div className="package-formal-description">
-        <div className="card-meta">
-          <span>{item.category}</span>
-          <span>{item.duration}</span>
+    <>
+      <motion.div className="package-row-container" initial="hidden" animate="visible" variants={fadeUp} transition={{ delay: index * 0.08 }}>
+        <div 
+          className="package-image-card" 
+          onClick={(e) => {
+            if (item.video) return; // Don't zoom if it's a video for now, or handle separately
+            setIsZoomed(true);
+          }} 
+          style={{ cursor: item.video ? "default" : "zoom-in" }}
+          title={item.video ? undefined : "Click to zoom image"}
+        >
+          {item.video ? (
+            <video 
+              src={item.video} 
+              autoPlay 
+              loop 
+              muted 
+              playsInline 
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+            />
+          ) : (
+            <img src={item.image} alt={item.place} />
+          )}
         </div>
-        <h3>{item.title}</h3>
-        <p><MapPin size={15} />{item.destination}</p>
-        <div className="package-footer">
-          <strong>{item.price}</strong>
-          <Link className="text-link" to={`/packages/${item.id}`}>Details</Link>
+        <div className="package-formal-description" onClick={() => navigate(`/packages/${item.id}`)} style={{ cursor: "pointer" }}>
+          <div className="card-meta">
+            <span>{item.category}</span>
+            <span><Clock3 size={15} /> {item.travel_time}</span>
+          </div>
+          <h3>{item.place}</h3>
+          <p><MapPin size={15} /> {item.distance_from_pune} from Pune</p>
+          <div className="package-footer">
+            <strong className="highlights-text">{item.highlights}</strong>
+            <Link className="text-link" to={`/packages/${item.id}`}>Details</Link>
+          </div>
         </div>
-        <div className="trust-note"><ShieldCheck size={15} />{item.trust}</div>
-      </div>
-    </motion.div>
+      </motion.div>
+
+      {isZoomed && createPortal(
+        <div className="lightbox-overlay" onClick={() => setIsZoomed(false)}>
+          <img src={item.image} alt={item.place} className="lightbox-img" />
+        </div>,
+        document.body
+      )}
+    </>
   );
 }
 
@@ -333,14 +398,14 @@ export function PackageDetailsPage() {
   return (
     <div className="page padded-page">
       <section className="detail-hero">
-        <img src={selected.image} alt={selected.title} />
+        <img src={selected.image} alt={selected.place} />
         <div className="detail-panel">
           <span className="eyebrow">{selected.category}</span>
-          <h1>{selected.title}</h1>
-          <p>{selected.accent}. Reviewed by CarHub before execution.</p>
+          <h1>{selected.place}</h1>
+          <p>{selected.highlights}. Start your journey from Pune.</p>
           <div className="detail-facts">
-            <span><CalendarDays size={17} />{selected.duration}</span>
-            <span><TicketCheck size={17} />{selected.price}</span>
+            <span><MapPin size={17} />{selected.distance_from_pune}</span>
+            <span><Clock3 size={17} />{selected.travel_time}</span>
             <span><LifeBuoy size={17} />Support visible</span>
           </div>
           <button className="primary-button large" onClick={() => navigate(`/request/${selected.id}`)}>

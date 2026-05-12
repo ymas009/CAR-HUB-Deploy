@@ -20,14 +20,13 @@ export type RequestStatus =
 
 export interface PackageCard {
   id: string;
-  title: string;
-  destination: string;
+  place: string;
+  distance_from_pune: string;
+  travel_time: string;
+  highlights: string;
   category: string;
-  duration: string;
-  price: string;
   image: string;
-  trust: string;
-  accent: string;
+  video?: string;
 }
 
 export interface UserSession {
