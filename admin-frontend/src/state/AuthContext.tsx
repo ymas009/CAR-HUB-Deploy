@@ -7,19 +7,10 @@ interface AuthContextValue {
   loading: boolean;
   login: (email: string, password: string) => Promise<UserSession>;
   register: (payload: Record<string, unknown>) => Promise<UserSession>;
-  loginAs: (role: Exclude<Role, "GUEST">) => Promise<void>;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
-
-const demoCredentials: Record<Exclude<Role, "GUEST">, { email: string; password: string }> = {
-  CUSTOMER: { email: "customer@carhub.local", password: "Customer@12345" },
-  ADMIN: { email: "admin@carhub.local", password: "Admin@12345" },
-  SUB_ADMIN: { email: "admin@carhub.local", password: "Admin@12345" },
-  SUPPORT: { email: "admin@carhub.local", password: "Admin@12345" },
-  PROVIDER: { email: "provider@carhub.local", password: "Provider@12345" }
-};
 
 interface AuthApiResponse {
   userId: string;
@@ -57,10 +48,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       login: async (email, password) => acceptAuthResponse(await api.post<AuthApiResponse>("/auth/login", { email, password })),
       register: async (payload) => acceptAuthResponse(await api.post<AuthApiResponse>("/auth/register", payload)),
-      loginAs: async (role) => {
-        const credentials = demoCredentials[role];
-        await acceptAuthResponse(await api.post<AuthApiResponse>("/auth/login", credentials));
-      },
       logout: () => {
         api.post("/auth/logout", {}).catch(() => undefined);
         tokenStore.clear();

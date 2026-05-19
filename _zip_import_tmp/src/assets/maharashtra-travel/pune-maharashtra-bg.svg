@@ -1,0 +1,41 @@
+<svg width="1920" height="1080" viewBox="0 0 1920 1080" fill="none" xmlns="http://www.w3.org/2000/svg">
+<defs>
+  <linearGradient id="bg" x1="0" y1="0" x2="1920" y2="860" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#FFF3DC"/>
+    <stop offset="0.45" stop-color="#EEF8F4"/>
+    <stop offset="1" stop-color="#BCE9F3"/>
+  </linearGradient>
+  <linearGradient id="sun" x1="0" y1="750" x2="690" y2="500" gradientUnits="userSpaceOnUse">
+    <stop stop-color="#FFC669" stop-opacity=".50"/>
+    <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+  </linearGradient>
+  <filter id="blur"><feGaussianBlur stdDeviation="35"/></filter>
+</defs>
+<rect width="1920" height="1080" fill="url(#bg)"/>
+<circle cx="150" cy="730" r="355" fill="url(#sun)" filter="url(#blur)"/>
+<g opacity=".54">
+  <path d="M0 805 C185 715 260 775 410 690 C560 610 690 730 790 675 C930 598 1050 670 1160 640 C1340 590 1440 690 1560 650 C1720 590 1840 670 1920 610 V1080 H0 Z" fill="#C5D9CA"/>
+  <path d="M0 872 C220 762 390 858 520 780 C650 705 790 845 925 770 C1080 685 1245 840 1380 780 C1550 705 1710 820 1920 720 V1080 H0 Z" fill="#82AE94" opacity=".78"/>
+  <path d="M0 940 C210 820 395 918 585 855 C820 780 1060 920 1230 835 C1430 735 1640 910 1920 805 V1080 H0 Z" fill="#3D8068" opacity=".40"/>
+</g>
+<g opacity=".24" stroke="#514239" stroke-width="5" fill="none">
+  <path d="M1320 880V520c0-66 72-96 122-52 50-44 122-14 122 52v360"/>
+  <path d="M1388 880V574c0-42 50-55 73-22 23-33 73-20 73 22v306"/>
+  <path d="M1610 880V490c0-48 54-83 104-56v446"/>
+  <path d="M1295 535h470M1295 648h470M1295 760h470"/>
+  <path d="M1356 478c42-42 80-42 122 0M1480 478c42-42 80-42 122 0"/>
+</g>
+<g opacity=".48" stroke="#1B5F53" stroke-width="5" stroke-linecap="round">
+  <path d="M1330 205c22-18 45-18 67 0"/>
+  <path d="M1402 180c18-14 38-14 56 0"/>
+  <path d="M1245 270c18-14 37-14 55 0"/>
+</g>
+<path d="M1260 1028 C1400 928 1650 835 1920 760" stroke="#F3ECDC" stroke-width="13" opacity=".78"/>
+<path d="M1260 1028 C1400 928 1650 835 1920 760" stroke="#557D70" stroke-width="3" opacity=".46"/>
+<g opacity=".28" stroke="#0E6958" stroke-width="3" stroke-dasharray="9 12">
+  <path d="M500 795 C665 665 845 705 1000 590 C1130 494 1258 478 1420 430"/>
+</g>
+<circle cx="501" cy="795" r="10" fill="#0E6958" opacity=".45"/>
+<circle cx="1000" cy="590" r="10" fill="#0E6958" opacity=".45"/>
+<circle cx="1420" cy="430" r="10" fill="#0E6958" opacity=".45"/>
+</svg>

@@ -1,37 +1,54 @@
 import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
+import { pickupPoints } from "../data/pickupPoints";
+
 import {
   ArrowRight,
-  Bell,
+  Castle,
   CalendarDays,
+  CarFront,
   CheckCircle2,
   ClipboardCheck,
   Clock3,
+  Crown,
+  Download,
+  Headphones,
+  Heart,
+  Eye,
+  EyeOff,
   LifeBuoy,
   LockKeyhole,
   MapPin,
+  Menu,
+  Mountain,
+  PackageCheck,
   Search,
   ShieldCheck,
   SlidersHorizontal,
+  Star,
+  SunMedium,
   TicketCheck,
+  Users,
+  IdCard,
+  Waves,
   X
 } from "lucide-react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { z } from "zod";
 import { packages as fallbackPackages, workflow } from "../data/mockData";
-import { api } from "../services/api";
+import { ApiRequestError, api } from "../services/api";
 import { useAuth } from "../state/AuthContext";
 import { matchesPackageQuery } from "../utils/packageSearch";
 import {
   ApiPackage,
-  ApiRequest,
+  BookingTicket,
+  CarType,
   ContentPage,
-  FeedbackItem,
   PackageCard,
-  ProviderAssignment,
-  RequestStatus,
-  SupportTicket
+  PaymentOrder,
+  PaymentVerification,
+  ProviderTicket
 } from "../types";
 
 const fadeUp = {
@@ -39,15 +56,27 @@ const fadeUp = {
   visible: { opacity: 1, y: 0 }
 };
 
-const requestSchema = z.object({
-  destination: z.string().min(3, "Destination is required"),
-  currentLocation: z.string().min(3, "Current location is required"),
-  travelers: z.coerce.number().min(1, "At least one traveler is required"),
-  startDate: z.string().min(1, "Start date is required"),
-  endDate: z.string().min(1, "End date is required"),
-  budget: z.string().min(1, "Budget range is required"),
-  tripType: z.string().min(1, "Trip type is required"),
-  emergencyContact: z.string().min(8, "Emergency contact is required")
+const travellerSchema = z.object({
+  fullName: z.string().trim().min(1, "Full name is required."),
+  age: z.coerce.number().int("Age must be a whole number.").min(1, "Age must be at least 1."),
+  gender: z.string().trim().min(1, "Select gender.")
+});
+
+const bookingSchema = z.object({
+  travellersCount: z.coerce.number().int().min(1, "Select at least one traveller.").max(6, "Maximum 6 travellers allowed."),
+  carType: z.enum(["FOUR_SEATER", "SIX_SEATER"]),
+  travellers: z.array(travellerSchema),
+  specialRequests: z.string().trim().optional(),
+  pickupLocation: z.string().trim().min(3, "Pickup location is required."),
+  pickupDate: z.string().min(1, "Pickup date is required."),
+  pickupTime: z.string().min(1, "Pickup time is required.")
+}).superRefine((value, context) => {
+  if (value.travellers.length !== value.travellersCount) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["travellers"], message: "Traveller details must match traveller count." });
+  }
+  if (value.travellersCount > 4 && value.carType === "FOUR_SEATER") {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["carType"], message: "4-seater is disabled for more than 4 travellers." });
+  }
 });
 
 const mobilePattern = /^(\+?\d{1,3}[-\s]?)?[6-9]\d{9}$|^\+?[1-9]\d{7,14}$/;
@@ -57,7 +86,7 @@ const loginSchema = z.object({
   password: z.string().min(1, "Password is required.")
 });
 
-const registerSchema = z.object({
+const registrationBaseSchema = z.object({
   fullName: z.string().trim().min(2, "Full name must be at least 2 characters."),
   mobile: z.string().trim().regex(mobilePattern, "Enter a valid mobile number."),
   email: z.string().trim().email("Enter a valid email address."),
@@ -67,29 +96,135 @@ const registerSchema = z.object({
     .regex(/[A-Z]/, "Password must include an uppercase letter.")
     .regex(/\d/, "Password must include a number.")
     .regex(/[^A-Za-z0-9]/, "Password must include a special character."),
-  city: z.string().trim().min(2, "City is required."),
-  state: z.string().trim().min(2, "State is required."),
-  country: z.string().trim().min(2, "Country is required."),
+  addressMode: z.enum(["manual", "current"]),
+  address: z.string().trim().min(8, "Address is required."),
+  pinCode: z.string().trim().optional(),
+  latitude: z.string().trim().optional(),
+  longitude: z.string().trim().optional(),
   consent: z.boolean().refine(Boolean, "Consent is required to create an account.")
 });
 
+const registerSchema = registrationBaseSchema.superRefine((value, context) => {
+  if (value.addressMode === "current" && (!value.latitude || !value.longitude)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["address"], message: "Select current location to continue." });
+  }
+});
+
+const providerRegisterSchema = registrationBaseSchema.extend({
+  rcNumber: z.string().trim().min(4, "RC number is required."),
+  rcDocumentImage: z.string().trim().min(1, "RC document image is required.")
+}).superRefine((value, context) => {
+  if (value.addressMode === "current" && (!value.latitude || !value.longitude)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["address"], message: "Select current location to continue." });
+  }
+});
+
 const forgotSchema = z.object({
-  identity: z.string().trim().min(3, "Enter your registered email or mobile number.")
+  identity: z.string().trim().min(1, "Enter your registered email or mobile number.")
+});
+
+const otpSchema = z.object({
+  otp: z.string().trim().min(1, "Enter the verification code.")
+});
+
+const passwordResetSchema = z.object({
+  newPassword: z.string()
+    .min(8, "Password must be at least 8 characters.")
+    .regex(/[a-z]/, "Password must include a lowercase letter.")
+    .regex(/[A-Z]/, "Password must include an uppercase letter.")
+    .regex(/\d/, "Password must include a number.")
+    .regex(/[^A-Za-z0-9]/, "Password must include a special character."),
+  confirmPassword: z.string()
+}).refine((value) => value.newPassword === value.confirmPassword, {
+  path: ["confirmPassword"],
+  message: "Passwords do not match."
 });
 
 const providerPackageSchema = z.object({
-  title: z.string().trim().min(4, "Package title is required."),
   destination: z.string().trim().min(3, "Destination is required."),
-  category: z.string().trim().min(3, "Category is required."),
-  summary: z.string().trim().min(20, "Summary must explain the package clearly."),
-  description: z.string().trim().min(40, "Description must include enough execution detail."),
-  startingPrice: z.coerce.number().min(1, "Starting price is required."),
-  currency: z.string().trim().length(3, "Currency must be a 3-letter code."),
-  durationDays: z.coerce.number().min(1, "Duration must be at least 1 day.").max(60, "Duration is too long."),
-  imageUrl: z.string().trim().url("Enter a valid image URL.").optional().or(z.literal(""))
+  customDestination: z.string().trim().optional(),
+  localPlaces: z.string().trim().min(3, "Add local places or subplaces."),
+  carType: z.enum(["FOUR_SEATER", "SIX_SEATER"]),
+  pickupAvailabilityMode: z.enum(["ALWAYS", "SPECIFIC"]),
+  pickupStartTime: z.string().trim().optional(),
+  pickupEndTime: z.string().trim().optional(),
+  carPhotoUrl: z.string().trim().min(1, "Upload car photo."),
+  carNumber: z.string().trim().min(4, "Car number is required."),
+  carModel: z.string().trim().min(2, "Car name or model is required."),
+  licenseNumber: z.string().trim().min(4, "Driving licence number is required."),
+  licenseHolderName: z.string().trim().optional(),
+  licenseDocumentUrl: z.string().trim().min(1, "Upload driving licence photo or PDF."),
+  rcNumber: z.string().trim().optional(),
+  rcDocumentUrl: z.string().trim().optional(),
+  pricePerKm: z.coerce.number().positive("Rate per km must be greater than 0.").optional()
+}).superRefine((value, context) => {
+  if (value.destination === "__custom" && !value.customDestination?.trim()) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["customDestination"], message: "Enter destination name." });
+  }
+  if (value.pickupAvailabilityMode === "SPECIFIC") {
+    if (!value.pickupStartTime) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ["pickupStartTime"], message: "Select pickup start time." });
+    }
+    if (!value.pickupEndTime) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ["pickupEndTime"], message: "Select pickup end time." });
+    }
+  }
 });
 
 type FieldErrors = Record<string, string>;
+
+const providerUploadLimitBytes = 4 * 1024 * 1024;
+const providerAppUrl = (import.meta.env.VITE_PROVIDER_APP_URL ?? "http://localhost:5175").replace(/\/$/, "");
+
+interface ReverseGeocodeResult {
+  displayName: string;
+  area?: string;
+  city?: string;
+  state?: string;
+  pinCode?: string;
+  latitude: string;
+  longitude: string;
+}
+
+interface BigDataCloudReverseResult {
+  locality?: string;
+  city?: string;
+  principalSubdivision?: string;
+  postcode?: string;
+  countryName?: string;
+}
+
+interface RazorpaySuccessResponse {
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+}
+
+interface RazorpayCheckoutOptions {
+  key: string;
+  amount: number;
+  currency: string;
+  name: string;
+  description: string;
+  order_id: string;
+  handler: (response: RazorpaySuccessResponse) => void;
+  prefill?: {
+    name?: string;
+    email?: string;
+  };
+  theme?: {
+    color?: string;
+  };
+  modal?: {
+    ondismiss?: () => void;
+  };
+}
+
+declare global {
+  interface Window {
+    Razorpay?: new (options: RazorpayCheckoutOptions) => { open: () => void };
+  }
+}
 
 function getFieldErrors(error: z.ZodError): FieldErrors {
   return error.issues.reduce<FieldErrors>((errors, issue) => {
@@ -101,32 +236,192 @@ function getFieldErrors(error: z.ZodError): FieldErrors {
   }, {});
 }
 
+function getProviderUploadErrors(form: FormData, requireCarPhoto: boolean, requireLicenseDocument: boolean): FieldErrors {
+  const errors: FieldErrors = {};
+  const carPhoto = form.get("carPhotoUrl");
+  const licenseDocument = form.get("licenseDocumentUrl");
+  if (requireCarPhoto && (!(carPhoto instanceof File) || carPhoto.size === 0)) {
+    errors.carPhotoUrl = "Upload car photo.";
+  }
+  if (carPhoto instanceof File && carPhoto.size > providerUploadLimitBytes) {
+    errors.carPhotoUrl = "Car photo must be under 4 MB.";
+  }
+  if (requireLicenseDocument && (!(licenseDocument instanceof File) || licenseDocument.size === 0)) {
+    errors.licenseDocumentUrl = "Upload licence file.";
+  }
+  if (licenseDocument instanceof File && licenseDocument.size > providerUploadLimitBytes) {
+    errors.licenseDocumentUrl = "Licence file must be under 4 MB.";
+  }
+  return errors;
+}
+
+function toProviderFieldErrors(exception: unknown): FieldErrors {
+  if (exception instanceof ApiRequestError && exception.details) {
+    return Object.entries(exception.details).reduce<FieldErrors>((errors, [field, message]) => {
+      errors[field] = getProviderFieldMessage(field, message);
+      return errors;
+    }, {});
+  }
+  return {};
+}
+
+function getProviderFieldMessage(field: string, message: string) {
+  if (field === "carPhotoUrl") return "Upload a smaller car photo.";
+  if (field === "licenseDocumentUrl") return "Upload a smaller licence file.";
+  if (field === "destination") return "Select destination.";
+  if (field === "localPlaces") return "Add local places.";
+  if (field === "carNumber") return "Enter car number.";
+  if (field === "carModel") return "Enter car name.";
+  if (field === "licenseNumber") return "Enter licence number.";
+  if (field === "pickupStartTime") return "Select start time.";
+  if (field === "pickupEndTime") return "Select end time.";
+  return message || "Check this field.";
+}
+
+function getUserFriendlyError(exception: unknown, fallback: string) {
+  if (!(exception instanceof Error)) {
+    return fallback;
+  }
+  const message = exception.message.trim();
+  if (!message) {
+    return fallback;
+  }
+  if (/failed to fetch|networkerror|load failed/i.test(message)) {
+    return "Server is not reachable.";
+  }
+  if (/internal_error|something went wrong/i.test(message)) {
+    return "Server error. Try again.";
+  }
+  if (/email.*already registered/i.test(message)) {
+    return "Email already registered.";
+  }
+  if (/mobile.*already registered/i.test(message)) {
+    return "Mobile number already registered.";
+  }
+  if (/invalid email or password/i.test(message)) {
+    return "Wrong email or password.";
+  }
+  if (/email.*not registered|email_not_registered/i.test(message)) {
+    return "Email not registered.";
+  }
+  if (/wrong password|wrong_password/i.test(message)) {
+    return "Wrong password.";
+  }
+  if (/account not found|user_not_found/i.test(message)) {
+    return "Account not found.";
+  }
+  if (/please correct the highlighted fields/i.test(message)) {
+    return "Enter registered email or mobile.";
+  }
+  if (/verification code.*incorrect|otp_invalid/i.test(message)) {
+    return "Wrong verification code.";
+  }
+  if (/verification code expired|otp_expired/i.test(message)) {
+    return "Verification code expired.";
+  }
+  return message;
+}
+
+function openProviderPortal(action: "login" | "register") {
+  window.location.assign(`${providerAppUrl}/${action}`);
+}
+
 function toCard(item: ApiPackage): PackageCard {
   return {
     id: item.id,
     place: item.title,
+    destination: item.destination,
     distance_from_pune: "Distance TBD",
     travel_time: `${item.durationDays} days`,
+    durationDays: item.durationDays,
+    startingPrice: item.startingPrice,
+    currency: item.currency,
     highlights: item.summary,
     category: item.category,
-    image: item.imageUrl
+    image: item.imageUrl,
+    video: item.videoUrl
   };
 }
 
+function loadRazorpayCheckout() {
+  return new Promise<void>((resolve, reject) => {
+    if (window.Razorpay) {
+      resolve();
+      return;
+    }
+    const existingScript = document.querySelector<HTMLScriptElement>("script[data-razorpay-checkout]");
+    if (existingScript) {
+      existingScript.addEventListener("load", () => resolve(), { once: true });
+      existingScript.addEventListener("error", () => reject(new Error("Razorpay checkout could not be loaded.")), { once: true });
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.async = true;
+    script.dataset.razorpayCheckout = "true";
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Razorpay checkout could not be loaded."));
+    document.body.appendChild(script);
+  });
+}
+
+async function downloadTicketPdf(ticketId: string, ticketNumber?: string) {
+  const blob = await api.blob(`/tickets/${ticketId}/pdf`);
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `carhub-ticket-${ticketNumber ?? ticketId}.pdf`;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
+async function fileToDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+function isPickupTimeAllowed(pack: ApiPackage | null, pickupTime: string) {
+  if (!pack || pack.pickupAvailabilityMode !== "SPECIFIC" || !pack.pickupStartTime || !pack.pickupEndTime) {
+    return true;
+  }
+  const requested = pickupTime.trim();
+  const start = pack.pickupStartTime;
+  const end = pack.pickupEndTime;
+  if (!requested) return true;
+  if (start === end) return true;
+  return start < end
+    ? requested >= start && requested <= end
+    : requested >= start || requested <= end;
+}
+
+function pickupAvailabilityLabel(pack: ApiPackage | null) {
+  if (!pack || pack.pickupAvailabilityMode !== "SPECIFIC" || !pack.pickupStartTime || !pack.pickupEndTime) {
+    return "Provider pickup available 24/7";
+  }
+  return `Provider pickup available ${pack.pickupStartTime} to ${pack.pickupEndTime}`;
+}
+
 function usePackages() {
-  const [items, setItems] = useState<PackageCard[]>(fallbackPackages);
+  const [items, setItems] = useState<PackageCard[]>([]);
   const [loading, setLoading] = useState(true);
-  const [source, setSource] = useState<"api" | "fallback">("api");
+  const [source, setSource] = useState<"api" | "unavailable">("api");
 
   useEffect(() => {
     api
       .get<ApiPackage[]>("/packages")
       .then((data) => {
         setItems(data.map(toCard));
+        setSource("api");
       })
       .catch(() => {
-        setItems(fallbackPackages);
-        setSource("fallback");
+        setItems([]);
+        setSource("unavailable");
       })
       .finally(() => setLoading(false));
   }, []);
@@ -166,7 +461,7 @@ export function HomePage() {
         >
           <motion.div className="eyebrow" variants={fadeUp}>
             <ShieldCheck size={18} />
-            Company-reviewed travel requests
+            Direct provider booking
           </motion.div>
           <motion.h1 className="hero-title" variants={fadeUp}>
             Luxury Travel Reimagined.
@@ -182,12 +477,12 @@ export function HomePage() {
             <button className="glass-button" onClick={() => navigate("/contact")}>Talk to Support</button>
           </motion.div>
           <motion.div className="trust-grid" variants={fadeUp}>
-            {["Admin approved", "Verified partners", "Travel support"].map((item) => (
+            {/* {["Admin approved", "Verified partners", "Travel support"].map((item) => (
               <span key={item}>
                 <CheckCircle2 size={16} />
                 {item}
               </span>
-            ))}
+            ))} */}
           </motion.div>
         </motion.div>
       </section>
@@ -204,8 +499,8 @@ export function HomePage() {
 
       <section className="workflow-band">
         <div>
-          <span className="eyebrow">How CarHub protects customers</span>
-          <h2>Company review comes first.</h2>
+          <span className="eyebrow">How CarHub works</span>
+          <h2>Pay, generate ticket, and connect with your provider.</h2>
         </div>
         <div className="workflow-rail">
           {workflow.map((step, index) => (
@@ -224,6 +519,7 @@ export function ExplorePage() {
   const { items, loading, source } = usePackages();
   const [query, setQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [chipRail, setChipRail] = useState<HTMLDivElement | null>(null);
 
   const categories = useMemo(() => {
     return Array.from(new Set(items.map(i => i.category))).filter(Boolean);
@@ -237,50 +533,91 @@ export function ExplorePage() {
     });
   }, [items, query, selectedCategory]);
 
+  const quickFilters = [
+    { label: "Weekend Trips", value: null, icon: CalendarDays },
+    { label: "Hill Stations", value: categories.find((item) => /hill/i.test(item)) ?? "Hill Station / Scenic Town", icon: Mountain },
+    { label: "Beaches", value: categories.find((item) => /beach/i.test(item)) ?? "Beach / Coastal Town", icon: Waves },
+    { label: "Forts", value: categories.find((item) => /fort/i.test(item)) ?? "Fort / History", icon: Castle },
+    { label: "One Day Trip", value: categories[0] ?? null, icon: SunMedium },
+    { label: "Family Tour", value: categories.find((item) => /nature|family/i.test(item)) ?? null, icon: Users },
+    { label: "Couple Trip", value: categories.find((item) => /lake|beach|scenic/i.test(item)) ?? null, icon: Heart },
+    { label: "Adventure", value: categories.find((item) => /adventure|fort|hill|trek/i.test(item)) ?? null, icon: Mountain },
+    { label: "Luxury Stay", value: categories.find((item) => /modern|city|luxury/i.test(item)) ?? null, icon: Crown }
+  ];
+
+  function scrollCategories() {
+    chipRail?.scrollBy({ left: 220, behavior: "smooth" });
+  }
+
+  function clearFilters() {
+    setQuery("");
+    setSelectedCategory(null);
+  }
+
   return (
-    <div className="page padded-page">
-      <div className="toolbar">
-        <div>
+    <div className="page padded-page explore-page">
+      <div className="explore-video-layer" aria-hidden="true" />
+      <section className="explore-hero">
+        <div className="explore-hero-copy">
           <span className="eyebrow">Explore</span>
-          <h1>Explore destinations from <span>Pune.</span></h1>
+          <h1>
+            <span className="headline-line">Explore destinations</span>
+            <span className="headline-line">from <span className="headline-accent">Pune.</span></span>
+          </h1>
         </div>
-        
-      </div>
-      <div className="search-box">
+        <div className="explore-hero-media">
+          <div
+            className="explore-hero-media-bg"
+            aria-label="Fort view from Maharashtra"
+            role="img"
+          />
+        </div>
+      </section>
+      <section className="explore-browse-panel" aria-label="Search and filter packages">
+        <div className="search-box explore-search">
           <Search size={20} />
-          <input 
-            value={query} 
-            onChange={(event) => setQuery(event.target.value)} 
-            placeholder="Search luxury destinations or trip themes..." 
-            aria-label="Search packages" 
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search Pune to Lonavala, Mahabaleshwar, Alibaug, forts..."
+            aria-label="Search packages"
           />
           {query && (
-            <button 
-              className="search-clear-btn" 
-              onClick={() => setQuery("")} 
+            <button
+              className="search-clear-btn"
+              onClick={() => setQuery("")}
               aria-label="Clear search"
             >
               <X size={18} />
             </button>
           )}
           <button className="icon-button" aria-label="Filter packages"><SlidersHorizontal size={20} /></button>
-      </div>
-      <div className="category-filter-section">
-        <select 
-          className="category-select dropdown-filter" 
-          value={selectedCategory || ""} 
-          onChange={(e) => setSelectedCategory(e.target.value || null)}
-          aria-label="Filter by category"
-        >
-          <option value="">All Destinations</option>
-          {categories.map((cat) => (
-            <option key={cat} value={cat}>{cat}</option>
-          ))}
-        </select>
-      </div>
-      {source === "fallback" && (
+        </div>
+        <div className="explore-chip-row-wrap">
+          <div className="explore-chip-row" ref={setChipRail}>
+            {quickFilters.map((filter) => {
+              const Icon = filter.icon;
+              const active = (filter.value === null && selectedCategory === null) || selectedCategory === filter.value;
+              return (
+                <button
+                  type="button"
+                  key={filter.label}
+                  className={`explore-chip ${active ? "active" : ""}`}
+                  aria-pressed={active}
+                  onClick={() => setSelectedCategory(filter.value)}
+                >
+                  <Icon size={16} />
+                  <span>{filter.label}</span>
+                </button>
+              );
+            })}
+          </div>
+          <button type="button" className="explore-scroll-arrow" aria-label="More categories" onClick={scrollCategories}>&gt;</button>
+        </div>
+      </section>
+      {source === "unavailable" && (
         <div className="notice-panel">
-          Showing sample packages because the backend is not reachable. You can still explore the UI safely.
+          Packages are temporarily unavailable. Please try again after the server is back online.
         </div>
       )}
       {loading && <PackageSkeletonGrid />}
@@ -292,21 +629,100 @@ export function ExplorePage() {
           <button className="primary-button" onClick={() => setQuery("")}>Clear search</button>
         </div>
       )}
-      <div className="package-grid">
-        {!loading && filteredItems.map((item, index) => (
-          <div className="package-row-wrapper" key={item.id}>
-            <PackageTile item={item} index={index} />
-            {index < filteredItems.length - 1 && (
-              <div className="logo-divider-line">
-                <div className={`sliding-logo ${index % 2 === 0 ? 'slide-right' : 'slide-left'}`}>
-                  CARHUB
-                </div>
+      {!loading && filteredItems.length > 0 && (
+        <>
+          <section className="explore-listing" aria-labelledby="explore-results-heading">
+            <div className="explore-listing-header">
+              <div>
+                <span className="eyebrow">Available packages</span>
+                <h2 id="explore-results-heading">
+                  {filteredItems.length} curated trip{filteredItems.length === 1 ? "" : "s"} ready to book
+                </h2>
               </div>
-            )}
-          </div>
-        ))}
-      </div>
+              <div className="explore-results-actions">
+                <div className="explore-results-count">
+                  <SlidersHorizontal size={16} />
+                  <span>{selectedCategory ?? "All categories"}</span>
+                </div>
+                {(query || selectedCategory) && (
+                  <button className="explore-reset-button" type="button" onClick={clearFilters}>
+                    Clear
+                  </button>
+                )}
+              </div>
+            </div>
+            <div className="explore-package-grid">
+              {filteredItems.map((item, index) => (
+                <ExplorePackageCard key={item.id} item={item} index={index} />
+              ))}
+            </div>
+          </section>
+        </>
+      )}
     </div>
+  );
+}
+
+function formatPackagePrice(item: PackageCard) {
+  if (!item.startingPrice) return "Price on request";
+  const currency = item.currency === "INR" || !item.currency ? "INR" : item.currency;
+  return `From ${currency} ${item.startingPrice.toLocaleString("en-IN")}`;
+}
+
+function getPackageRating(item: PackageCard, index: number) {
+  const seed = `${item.id}-${item.place}`.split("").reduce((total, char) => total + char.charCodeAt(0), index * 17);
+  return (4.4 + (seed % 6) / 10).toFixed(1);
+}
+
+function ExplorePackageCard({ item, index }: { item: PackageCard; index: number }) {
+  const rating = getPackageRating(item, index);
+
+  return (
+    <motion.article
+      className="explore-package-card"
+      initial="hidden"
+      animate="visible"
+      variants={fadeUp}
+      transition={{ delay: Math.min(index * 0.035, 0.24) }}
+    >
+      <Link className="explore-package-media" to={`/packages/${item.id}`} aria-label={`View ${item.place}`}>
+        {item.video ? (
+          <video src={item.video} autoPlay loop muted playsInline aria-label={item.place} />
+        ) : (
+          <img src={item.image} alt={item.place} loading="lazy" />
+        )}
+        <span className="explore-rating-badge" aria-label={`${rating} rating`}>
+          <Star size={14} fill="currentColor" />
+          {rating}
+        </span>
+      </Link>
+      <div className="explore-package-content">
+        <div className="explore-package-title-row">
+          <div>
+            <span className="explore-package-kicker">
+              <MapPin size={14} />
+              {item.destination ?? item.place}
+            </span>
+            <h3>{item.place}</h3>
+          </div>
+          <strong className="explore-package-price">{formatPackagePrice(item)}</strong>
+        </div>
+        <p>{item.highlights}</p>
+        <div className="explore-package-meta">
+          <span className="explore-package-badge"><TicketCheck size={15} />{item.category}</span>
+          <span><Clock3 size={15} />{item.travel_time}</span>
+          <span><CarFront size={15} />Private car</span>
+          <span><ShieldCheck size={15} />Verified provider</span>
+        </div>
+        <div className="explore-package-actions">
+          <Link className="primary-button" to={`/packages/${item.id}`}>
+            View details
+            <ArrowRight size={17} />
+          </Link>
+          <span className="explore-package-note">Instant ticket after payment</span>
+        </div>
+      </div>
+    </motion.article>
   );
 }
 
@@ -383,22 +799,63 @@ function PackageSkeletonGrid() {
 export function PackageDetailsPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { items } = usePackages();
   const [pack, setPack] = useState<PackageCard | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [unavailable, setUnavailable] = useState(false);
 
   useEffect(() => {
     if (!id) return;
-    api.get<ApiPackage>(`/packages/${id}`).then((data) => setPack(toCard(data))).catch(() => {
-      setPack(items.find((item) => item.id === id) ?? fallbackPackages[0]);
-    });
+    setLoading(true);
+    setUnavailable(false);
+    api.get<ApiPackage>(`/packages/${id}`)
+      .then((data) => setPack(toCard(data)))
+      .catch(() => {
+        setPack(null);
+        setUnavailable(true);
+      })
+      .finally(() => setLoading(false));
   }, [id]);
 
-  const selected = pack ?? items.find((item) => item.id === id) ?? fallbackPackages[0];
+  const selected = pack ?? items.find((item) => item.id === id) ?? null;
+
+  if (loading) {
+    return (
+      <div className="page padded-page">
+        <PackageSkeletonGrid />
+      </div>
+    );
+  }
+
+  if (unavailable || !selected) {
+    return (
+      <div className="page padded-page">
+        <div className="empty-state">
+          <TicketCheck size={34} />
+          <h2>This package is no longer available.</h2>
+          <p>It may already be booked or waiting for admin approval before going live again.</p>
+          <button className="primary-button" onClick={() => navigate("/packages")}>View available packages</button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="page padded-page">
       <section className="detail-hero">
-        <img src={selected.image} alt={selected.place} />
+        {selected.video ? (
+          <video
+            src={selected.video}
+            autoPlay
+            loop
+            muted
+            playsInline
+            aria-label={selected.place}
+          />
+        ) : (
+          <img src={selected.image} alt={selected.place} />
+        )}
         <div className="detail-panel">
           <span className="eyebrow">{selected.category}</span>
           <h1>{selected.place}</h1>
@@ -408,8 +865,8 @@ export function PackageDetailsPage() {
             <span><Clock3 size={17} />{selected.travel_time}</span>
             <span><LifeBuoy size={17} />Support visible</span>
           </div>
-          <button className="primary-button large" onClick={() => navigate(`/request/${selected.id}`)}>
-            Request Package
+          <button className="primary-button large" onClick={() => navigate(user?.role === "CUSTOMER" ? `/booking/${selected.id}` : "/login", { state: { returnTo: `/booking/${selected.id}` } })}>
+            Book Now
             <ArrowRight size={18} />
           </button>
         </div>
@@ -418,15 +875,435 @@ export function PackageDetailsPage() {
   );
 }
 
+export function MemberSelectionPage() {
+  const { packageId } = useParams();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const [pack, setPack] = useState<ApiPackage | null>(null);
+  const [packageLoading, setPackageLoading] = useState(true);
+  const [packageUnavailable, setPackageUnavailable] = useState(false);
+  const [travellersCount, setTravellersCount] = useState(1);
+  const [carType, setCarType] = useState<CarType>("FOUR_SEATER");
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!packageId) return;
+    setPackageLoading(true);
+    setPackageUnavailable(false);
+    api.get<ApiPackage>(`/packages/${packageId}`)
+      .then(setPack)
+      .catch(() => {
+        setPack(null);
+        setPackageUnavailable(true);
+      })
+      .finally(() => setPackageLoading(false));
+  }, [packageId]);
+
+  useEffect(() => {
+    if (travellersCount > 4) {
+      setCarType("SIX_SEATER");
+    }
+  }, [travellersCount]);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!packageId) return;
+    setError("");
+    setFieldErrors({});
+    if (!pack) {
+      setError("This package is no longer available.");
+      return;
+    }
+    const form = new FormData(event.currentTarget);
+    const travellers = Array.from({ length: travellersCount }, (_, index) => ({
+      fullName: String(form.get(`traveller-${index}-name`) ?? ""),
+      age: Number(form.get(`traveller-${index}-age`) ?? 0),
+      gender: String(form.get(`traveller-${index}-gender`) ?? "")
+    }));
+    const result = bookingSchema.safeParse({
+      travellersCount,
+      carType,
+      travellers,
+      specialRequests: String(form.get("specialRequests") ?? ""),
+      pickupLocation: String(form.get("pickupLocation") ?? ""),
+      pickupDate: String(form.get("pickupDate") ?? ""),
+      pickupTime: String(form.get("pickupTime") ?? "")
+    });
+    if (!result.success) {
+      setFieldErrors(getFieldErrors(result.error));
+      return;
+    }
+    if (!isPickupTimeAllowed(pack, result.data.pickupTime)) {
+      setError(pickupAvailabilityLabel(pack));
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await loadRazorpayCheckout();
+      const paymentOrder = await api.post<PaymentOrder>("/payments/create-order", { packageId });
+      await new Promise<void>((resolve, reject) => {
+        if (!window.Razorpay) {
+          reject(new Error("Razorpay checkout is not available."));
+          return;
+        }
+        const checkout = new window.Razorpay({
+          key: paymentOrder.keyId,
+          amount: paymentOrder.amount,
+          currency: paymentOrder.currency,
+          name: "CarHub",
+          description: paymentOrder.packageName,
+          order_id: paymentOrder.orderId,
+          prefill: {
+            name: user?.name,
+            email: user?.email
+          },
+          theme: {
+            color: "#e50914"
+          },
+          modal: {
+            ondismiss: () => reject(new Error("Payment cancelled."))
+          },
+          handler: async (response) => {
+            try {
+              const verification = await api.post<PaymentVerification>("/payments/verify", {
+                razorpayOrderId: response.razorpay_order_id,
+                razorpayPaymentId: response.razorpay_payment_id,
+                razorpaySignature: response.razorpay_signature
+              });
+              if (!verification.verified) {
+                reject(new Error("Payment verification failed."));
+                return;
+              }
+              const ticket = await api.post<BookingTicket>("/bookings/submit", {
+                packageId,
+                ...result.data,
+                paymentReference: verification.paymentReference
+              });
+              navigate(`/booking/confirmation/${ticket.id}`);
+              resolve();
+            } catch (exception) {
+              reject(exception);
+            }
+          }
+        });
+        checkout.open();
+      });
+    } catch (exception) {
+      setError(exception instanceof Error ? exception.message : "Payment could not be completed.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="page padded-page">
+      {packageLoading ? (
+        <PackageSkeletonGrid />
+      ) : packageUnavailable ? (
+        <div className="empty-state">
+          <TicketCheck size={34} />
+          <h2>This package is no longer available.</h2>
+          <p>It may already be booked or waiting for admin approval before going live again.</p>
+          <button className="primary-button" onClick={() => navigate("/packages")}>View available packages</button>
+        </div>
+      ) : (
+      <section className="auth-card booking-card">
+        <form className="stacked-form" onSubmit={submit}>
+          <div className="booking-layout">
+            <div className="booking-main">
+              <div className="booking-header">
+                <span className="eyebrow"><TicketCheck size={17} />Booking handoff</span>
+                <h1>{pack?.title ?? "Book selected package"}</h1>
+                <p>{pack ? `${pack.destination} - ${pack.durationDays} days` : "Add traveller and car details to create your ticket."}</p>
+              </div>
+
+              <div className="booking-controls">
+                <FormField name="travellersCount" error={fieldErrors.travellersCount}>
+                  <label className="booking-field-label" htmlFor="travellersCount">Travellers</label>
+                  <select id="travellersCount" value={travellersCount} onChange={(event) => setTravellersCount(Number(event.target.value))} aria-label="Number of travellers">
+                    {[1, 2, 3, 4, 5, 6].map((count) => <option key={count} value={count}>{count} traveller{count > 1 ? "s" : ""}</option>)}
+                  </select>
+                </FormField>
+                <FormField name="carType" error={fieldErrors.carType}>
+                  <span className="booking-field-label">Car type</span>
+                  <div className="radio-group booking-radio-group">
+                    <label><input type="radio" checked={carType === "FOUR_SEATER"} disabled={travellersCount > 4} onChange={() => setCarType("FOUR_SEATER")} />4-seater</label>
+                    <label><input type="radio" checked={carType === "SIX_SEATER"} onChange={() => setCarType("SIX_SEATER")} />6-seater</label>
+                  </div>
+                </FormField>
+              </div>
+
+              <div className="booking-section-heading">
+                <Users size={18} />
+                <h2>Traveller details</h2>
+              </div>
+              <div className="traveller-grid">
+                {Array.from({ length: travellersCount }, (_, index) => (
+                  <div className="traveller-panel" key={index}>
+                    <h3>Traveller {index + 1}</h3>
+                    <div className="traveller-fields">
+                      <input name={`traveller-${index}-name`} placeholder="Full name" aria-label={`Traveller ${index + 1} full name`} />
+                      <input name={`traveller-${index}-age`} placeholder="Age" type="number" min="1" aria-label={`Traveller ${index + 1} age`} />
+                      <select name={`traveller-${index}-gender`} defaultValue="" aria-label={`Traveller ${index + 1} gender`}>
+                        <option value="" disabled>Gender</option>
+                        <option value="FEMALE">Female</option>
+                        <option value="MALE">Male</option>
+                        <option value="OTHER">Other</option>
+                      </select>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {fieldErrors.travellers && <span className="field-error">{fieldErrors.travellers}</span>}
+
+              <div className="booking-section-heading">
+                <MapPin size={18} />
+                <h2>Pickup details</h2>
+              </div>
+              <div className="booking-trip-grid">
+                      <input
+                      name="pickupLocation"
+                      list="pickup-point-options"
+                      placeholder="Search pickup point"
+                      aria-label="Pickup location"
+                      />
+
+                     <datalist id="pickup-point-options">
+                      {pickupPoints.map((point) => (
+                      <option key={point} value={point} />
+                      ))}
+                      </datalist>
+                     <input name="pickupDate" type="date" aria-label="Pickup date" />
+                     <input name="pickupTime" type="time" aria-label="Pickup time" />
+              </div>
+              <p className="form-helper pickup-availability-note">{pickupAvailabilityLabel(pack)}</p>
+              {error && <div className="error-box"><span>{error}</span></div>}
+            </div>
+
+            <aside className="booking-summary-panel">
+              <div>
+                <span className="eyebrow"><CalendarDays size={16} />Trip summary</span>
+                <h2>{travellersCount} traveller{travellersCount > 1 ? "s" : ""}</h2>
+                <p>{carType === "FOUR_SEATER" ? "4-seater car" : "6-seater car"}</p>
+              </div>
+              {pack && (
+                <div className="booking-summary-list">
+                  <span>{pack.destination}</span>
+                  <strong>{pack.durationDays} days</strong>
+                  <small>{pack.startingPrice ? `From INR ${pack.startingPrice}` : "Price confirmed by package"}</small>
+                </div>
+              )}
+              <button className="primary-button auth-submit-button" type="submit" disabled={submitting}>
+                {submitting ? "Processing..." : "Proceed to payment"}
+              </button>
+            </aside>
+          </div>
+        </form>
+      </section>
+      )}
+    </div>
+  );
+}
+
+export function BookingConfirmationPage() {
+  const { ticketId } = useParams();
+  const [ticket, setTicket] = useState<BookingTicket | null>(null);
+  const [error, setError] = useState("");
+  const [downloading, setDownloading] = useState(false);
+
+  useEffect(() => {
+    if (!ticketId) return;
+    api.get<BookingTicket>(`/tickets/${ticketId}`).then(setTicket).catch((exception) => {
+      setError(exception instanceof Error ? exception.message : "Ticket could not be loaded.");
+    });
+  }, [ticketId]);
+
+  return (
+    <div className="page padded-page">
+      <section className="auth-card booking-card ticket-confirmation-card">
+        <div className="ticket-confirmation-header">
+          <img src="/carhub-logo.png" alt="CarHub" />
+          <div>
+            <span className="eyebrow"><CheckCircle2 size={17} />Payment confirmed</span>
+            <h1>{ticket?.ticketNumber ?? "Ticket created"}</h1>
+            <p>Your ticket PDF has been prepared for download and email delivery.</p>
+          </div>
+        </div>
+        {error && <div className="error-box"><span>{error}</span></div>}
+        {ticket && (
+          <div className="ticket-confirmation-body">
+            <div className="ticket-summary-grid">
+              <div><span>Provider</span><strong>{ticket.providerBusinessName}</strong></div>
+              <div><span>Provider mobile</span><strong>{ticket.providerContactNumber}</strong></div>
+              <div><span>Car</span><strong>{ticket.carDetails}</strong></div>
+              <div><span>Car number</span><strong>{ticket.carNumber ?? "Will be confirmed by provider"}</strong></div>
+              <div><span>Route</span><strong>{ticket.route}</strong></div>
+              <div><span>Pickup</span><strong>{ticket.pickupLocation} - {ticket.pickupDate} {ticket.pickupTime}</strong></div>
+              <div><span>Payment ref</span><strong>{ticket.paymentReference}</strong></div>
+              <div><span>Travellers</span><strong>{ticket.travellersCount}</strong></div>
+            </div>
+            <div className="ticket-actions-row">
+              <button
+                className="primary-button"
+                type="button"
+                disabled={downloading}
+                onClick={async () => {
+                  setDownloading(true);
+                  setError("");
+                  try {
+                    await downloadTicketPdf(ticket.id, ticket.ticketNumber);
+                  } catch (exception) {
+                    setError(exception instanceof Error ? exception.message : "Ticket PDF could not be downloaded.");
+                  } finally {
+                    setDownloading(false);
+                  }
+                }}
+              >
+                <Download size={17} />
+                {downloading ? "Preparing PDF..." : "Download PDF"}
+              </button>
+              <Link className="outline-button" to="/customer">Customer workspace</Link>
+            </div>
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
 export function AuthPage({ mode }: { mode: "login" | "register" | "forgot" }) {
-  const { login, register, loginAs } = useAuth();
+  const { login, logout, register, confirmRegistration } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const returnTo = (location.state as { returnTo?: string } | null)?.returnTo ?? "/customer/requests";
+  const returnTo = (location.state as { returnTo?: string } | null)?.returnTo ?? "/customer";
+  const authState = location.state as { role?: "CUSTOMER" | "PROVIDER"; formMode?: "login" | "register"; returnTo?: string } | null;
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [submitting, setSubmitting] = useState(false);
+  const [selectedRole, setSelectedRole] = useState<"CUSTOMER" | "PROVIDER" | null>(authState?.role ?? null);
+  const [formMode, setFormMode] = useState<"login" | "register">(authState?.formMode ?? (mode === "register" ? "register" : "login"));
+  const [recoveryStep, setRecoveryStep] = useState<"request" | "otp" | "password">("request");
+  const [identity, setIdentity] = useState("");
+  const [otp, setOtp] = useState("");
+  const [registrationStep, setRegistrationStep] = useState<"details" | "verify">("details");
+  const [registrationEmail, setRegistrationEmail] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showAuthPassword, setShowAuthPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  useEffect(() => {
+    setFormMode(authState?.formMode ?? (mode === "register" ? "register" : "login"));
+    setSelectedRole(mode === "forgot" ? null : (authState?.role ?? null));
+    setRecoveryStep("request");
+    setIdentity("");
+    setOtp("");
+    setRegistrationStep("details");
+    setRegistrationEmail("");
+    setNewPassword("");
+    setConfirmPassword("");
+    setShowAuthPassword(false);
+    setShowNewPassword(false);
+    setShowConfirmPassword(false);
+  }, [mode, authState?.formMode, authState?.role]);
+
+  const showSelection = mode !== "forgot" && selectedRole === null;
+  const showAuthForm = mode === "forgot" || selectedRole !== null;
+  const roleLabel = selectedRole === "PROVIDER" ? "Provider" : "Customer";
+  const formHeading = mode === "forgot"
+    ? "Recover access"
+    : selectedRole
+      ? formMode === "register"
+        ? `Create ${roleLabel} account`
+        : `Sign in as ${roleLabel}`
+      : mode === "register"
+        ? "Create your CarHub account"
+        : "Welcome back";
+  const formSubtext = mode === "forgot"
+    ? "Use your registered email or mobile number."
+    : selectedRole
+      ? formMode === "register"
+        ? `Create a ${roleLabel.toLowerCase()} account.`
+        : `Sign in securely as ${roleLabel}.`
+      : mode === "register"
+        ? "Choose customer or provider registration."
+        : "Choose customer or provider login.";
+
+  function chooseRole(role: "CUSTOMER" | "PROVIDER", action: "login" | "register") {
+    setSelectedRole(role);
+    setFormMode(action);
+    setError("");
+    setNotice("");
+    setFieldErrors({});
+    setRegistrationStep("details");
+    setRegistrationEmail("");
+  }
+
+  function resetSelection() {
+    setSelectedRole(null);
+    setFormMode(mode === "register" ? "register" : "login");
+    setError("");
+    setNotice("");
+    setFieldErrors({});
+    setRegistrationStep("details");
+    setRegistrationEmail("");
+  }
+
+  function openForgotPassword() {
+    setFormMode("login");
+    setRecoveryStep("request");
+    setIdentity("");
+    setOtp("");
+    setNewPassword("");
+    setConfirmPassword("");
+    setShowAuthPassword(false);
+    setShowNewPassword(false);
+    setShowConfirmPassword(false);
+    setError("");
+    setNotice("");
+    setFieldErrors({});
+    navigate("/forgot-password", { state: { role: selectedRole } });
+  }
+
+  function goBackFromForgot() {
+    setError("");
+    setNotice("");
+    setFieldErrors({});
+    navigate("/login", authState?.role ? { state: { role: authState.role, formMode: "login" } } : undefined);
+  }
+
+  async function reverseGeocode(latitude: string, longitude: string): Promise<ReverseGeocodeResult> {
+    try {
+      const response = await fetch(
+        `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${encodeURIComponent(latitude)}&longitude=${encodeURIComponent(longitude)}&localityLanguage=en`
+      );
+      if (!response.ok) {
+        throw new Error("BigDataCloud reverse geocode failed.");
+      }
+      const data = await response.json() as BigDataCloudReverseResult;
+      const area = data.locality || data.city;
+      const parts = [data.locality, data.city, data.principalSubdivision, data.postcode, data.countryName]
+        .filter((part): part is string => Boolean(part && part.trim()));
+      if (!area || parts.length === 0) {
+        throw new Error("BigDataCloud did not return an area name.");
+      }
+      return {
+        displayName: Array.from(new Set(parts)).join(", "),
+        area,
+        city: data.city,
+        state: data.principalSubdivision,
+        pinCode: data.postcode,
+        latitude,
+        longitude
+      };
+    } catch {
+      return api.get<ReverseGeocodeResult>(`/location/reverse?latitude=${encodeURIComponent(latitude)}&longitude=${encodeURIComponent(longitude)}`);
+    }
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -437,44 +1314,126 @@ export function AuthPage({ mode }: { mode: "login" | "register" | "forgot" }) {
     setSubmitting(true);
     try {
       if (mode === "forgot") {
-        const result = forgotSchema.safeParse({ identity: String(form.get("identity") ?? "") });
-        if (!result.success) {
-          setFieldErrors(getFieldErrors(result.error));
+        if (recoveryStep === "request") {
+          const result = forgotSchema.safeParse({ identity: String(form.get("identity") ?? "") });
+          if (!result.success) {
+            setFieldErrors(getFieldErrors(result.error));
+            return;
+          }
+          setIdentity(result.data.identity);
+          await api.post("/auth/password/forgot", { identity: result.data.identity, email: result.data.identity, flow: "otp" });
+          setOtp("");
+          setNewPassword("");
+          setConfirmPassword("");
+          setNotice("Verification code sent to your email.");
+          setRecoveryStep("otp");
           return;
         }
-        setNotice("Password recovery is ready for email/SMS provider integration. For now, use a seeded demo account or contact support.");
-        return;
-      }
-      if (mode === "register") {
-        const result = registerSchema.safeParse({
-          fullName: String(form.get("fullName") ?? ""),
-          mobile: String(form.get("mobile") ?? ""),
-          email: String(form.get("email") ?? ""),
-          password: String(form.get("password") ?? ""),
-          city: String(form.get("city") ?? ""),
-          state: String(form.get("state") ?? ""),
-          country: String(form.get("country") ?? ""),
-          consent: form.get("consent") === "on"
+
+        if (recoveryStep === "otp") {
+          const result = otpSchema.safeParse({ otp: String(form.get("otp") ?? "") });
+          if (!result.success) {
+            setFieldErrors(getFieldErrors(result.error));
+            return;
+          }
+          setOtp(result.data.otp);
+          setNotice("Code verified. Set a new password.");
+          setRecoveryStep("password");
+          return;
+        }
+
+        const code = otp.trim();
+        if (!identity.trim()) {
+          setError("Enter registered email or mobile.");
+          setRecoveryStep("request");
+          return;
+        }
+        if (!code) {
+          setError("Verify the OTP first.");
+          setRecoveryStep("otp");
+          return;
+        }
+        const result = passwordResetSchema.safeParse({
+          newPassword: String(form.get("newPassword") ?? ""),
+          confirmPassword: String(form.get("confirmPassword") ?? "")
         });
         if (!result.success) {
           setFieldErrors(getFieldErrors(result.error));
           return;
         }
+        await api.post("/auth/password/reset", {
+          identity,
+          email: identity,
+          otp: code,
+          newPassword: result.data.newPassword
+        });
+        setRecoveryStep("request");
+        setIdentity("");
+        setOtp("");
+        setNewPassword("");
+        setConfirmPassword("");
+        navigate("/login", authState?.role ? { state: { role: authState.role, formMode: "login" } } : undefined);
+        return;
+      }
+
+      let session;
+      if (formMode === "register") {
+        if (registrationStep === "verify") {
+          const code = String(form.get("registrationOtp") ?? "").trim();
+          if (!code) {
+            setFieldErrors({ registrationOtp: "Enter the verification code sent to your email." });
+            return;
+          }
+          session = await confirmRegistration(registrationEmail, code);
+        } else {
+        const rcFile = form.get("rcDocumentImage");
+        const rawRegistration = {
+          fullName: String(form.get("fullName") ?? ""),
+          mobile: String(form.get("mobile") ?? ""),
+          email: String(form.get("email") ?? ""),
+          password: String(form.get("password") ?? ""),
+          addressMode: "manual",
+          address: String(form.get("address") ?? ""),
+          pinCode: String(form.get("pinCode") ?? ""),
+          latitude: "",
+          longitude: "",
+          rcNumber: String(form.get("rcNumber") ?? ""),
+          rcDocumentImage: rcFile instanceof File && rcFile.size > 0 ? rcFile.name : "",
+          consent: form.get("consent") === "on"
+        };
+        const result = (selectedRole === "PROVIDER" ? providerRegisterSchema : registerSchema).safeParse(rawRegistration);
+        if (!result.success) {
+          setFieldErrors(getFieldErrors(result.error));
+          return;
+        }
+        const rcDocumentImage = selectedRole === "PROVIDER" && rcFile instanceof File ? await fileToDataUrl(rcFile) : undefined;
         await register({
+          accountType: selectedRole,
           fullName: result.data.fullName,
           email: result.data.email,
           mobile: result.data.mobile,
           password: result.data.password,
-          city: result.data.city,
-          state: result.data.state,
-          country: result.data.country,
+          city: selectedRole === "PROVIDER" ? "Provider city" : "Pune",
+          state: selectedRole === "PROVIDER" ? "Provider state" : "Maharashtra",
+          country: "India",
+          address: result.data.address,
+          pinCode: result.data.pinCode,
+          latitude: result.data.latitude,
+          longitude: result.data.longitude,
+          rcNumber: "rcNumber" in result.data ? result.data.rcNumber : undefined,
+          rcDocumentImage,
           preferredTravelType: "Family holiday",
-          emergencyContactName: "Emergency Contact",
+          emergencyContactName: result.data.fullName,
           emergencyContactMobile: result.data.mobile,
           consentTerms: true,
           consentPrivacy: true,
           consentControlledDataSharing: true
         });
+        setRegistrationEmail(result.data.email);
+        setRegistrationStep("verify");
+        setNotice("A verification code has been sent to your email. Enter it to complete registration.");
+        return;
+        }
       } else {
         const result = loginSchema.safeParse({
           email: String(form.get("email") ?? ""),
@@ -484,28 +1443,29 @@ export function AuthPage({ mode }: { mode: "login" | "register" | "forgot" }) {
           setFieldErrors(getFieldErrors(result.error));
           return;
         }
-        await login(result.data.email, result.data.password);
+        session = await login(result.data.email, result.data.password);
       }
-      navigate(returnTo);
-    } catch (exception) {
-      setError(mode === "register"
-        ? "Registration could not be completed. Please review your details and try again."
-        : "Sign in failed. Please check your details and try again.");
-    } finally {
-      setSubmitting(false);
-    }
-  }
 
-  async function demo(role: "CUSTOMER" | "PROVIDER") {
-    setError("");
-    setNotice("");
-    setFieldErrors({});
-    setSubmitting(true);
-    try {
-      await loginAs(role);
-      navigate(role === "CUSTOMER" ? returnTo : "/provider");
-    } catch {
-      setError("Start the backend and database to use seeded demo users.");
+      if (selectedRole && session.role !== selectedRole) {
+        logout();
+        setError(`This email is registered as a ${session.role.toLowerCase()} account. Please use the correct workspace.`);
+        return;
+      }
+
+      if (session.role === "PROVIDER") {
+        navigate("/provider");
+      } else {
+        navigate(returnTo);
+      }
+    } catch (exception) {
+      setError(getUserFriendlyError(
+        exception,
+        mode === "forgot"
+          ? "Password recovery failed."
+          : formMode === "register"
+            ? "Registration failed."
+            : "Sign in failed."
+      ));
     } finally {
       setSubmitting(false);
     }
@@ -513,84 +1473,185 @@ export function AuthPage({ mode }: { mode: "login" | "register" | "forgot" }) {
 
   return (
     <div className="auth-page">
-      <motion.section className="auth-card" initial="hidden" animate="visible" variants={fadeUp}>
+      <motion.section className={`auth-card ${formMode === "register" ? "registration-card" : ""} ${selectedRole === "PROVIDER" ? "provider-registration-card" : ""}`} initial="hidden" animate="visible" variants={fadeUp}>
+        <img className="auth-card-logo" src="/carhub-logo.png" alt="CarHub" />
         <span className="eyebrow"><LockKeyhole size={17} />Protected CarHub access</span>
-        <h1>{mode === "register" ? "Create your CarHub account" : mode === "forgot" ? "Recover access" : "Welcome back"}</h1>
-        <p>Sign in to manage requests, support, and feedback securely.</p>
-        {mode === "login" && (
-          <div className="auth-switch-panel">
-            <span>New to CarHub?</span>
-            <Link to="/register">Create a customer account</Link>
+        <h1>{formHeading}</h1>
+        <p className="auth-subtext">{formSubtext}</p>
+
+        {showSelection && (
+          <div className="auth-role-selector compact">
+            <button type="button" className="role-button customer" onClick={() => chooseRole("CUSTOMER", mode === "register" ? "register" : "login")}>
+              <span className="role-name">Customer</span>
+            </button>
+            <button type="button" className="role-button provider" onClick={() => openProviderPortal(mode === "register" ? "register" : "login")}>
+              <span className="role-name">Provider</span>
+            </button>
           </div>
         )}
-        {mode === "login" && (
-          <Link className="forgot-link" to="/forgot-password">Forgot password?</Link>
+
+        {showAuthForm && (
+          <>
+            {mode === "forgot" && (
+              <div className="auth-actions-bar">
+                <button type="button" className="text-link" onClick={goBackFromForgot}>Go back</button>
+              </div>
+            )}
+            {selectedRole && mode !== "forgot" && (
+              <div className="auth-actions-bar">
+                <button type="button" className="text-link" onClick={() => setFormMode(formMode === "register" ? "login" : "register")}>
+                  {formMode === "register" ? "Already have an account? Sign in" : "Create an account"}
+                </button>
+                <button type="button" className="text-link" onClick={resetSelection}>Back to options</button>
+              </div>
+            )}
+            <form className="stacked-form" onSubmit={submit}>
+              {formMode === "register" && registrationStep === "details" && (
+                <>
+                  <FormField name="fullName" error={fieldErrors.fullName}>
+                    <input name="fullName" placeholder="Full name" autoComplete="name" aria-invalid={Boolean(fieldErrors.fullName)} aria-describedby="fullName-error" />
+                  </FormField>
+                  <FormField name="mobile" error={fieldErrors.mobile}>
+                    <input name="mobile" placeholder="Mobile number" inputMode="tel" autoComplete="tel" aria-invalid={Boolean(fieldErrors.mobile)} aria-describedby="mobile-error" />
+                  </FormField>
+                  {registrationStep === "details" && (
+                    <>
+                      <FormField name="address" error={fieldErrors.address}>
+                        <textarea name="address" placeholder="Address" autoComplete="street-address" aria-invalid={Boolean(fieldErrors.address)} aria-describedby="address-error" />
+                      </FormField>
+                      {selectedRole === "PROVIDER" && (
+                        <>
+                          <FormField name="rcNumber" error={fieldErrors.rcNumber}>
+                            <input name="rcNumber" placeholder="RC number" aria-invalid={Boolean(fieldErrors.rcNumber)} aria-describedby="rcNumber-error" />
+                          </FormField>
+                          <FormField name="rcDocumentImage" error={fieldErrors.rcDocumentImage}>
+                            <input name="rcDocumentImage" type="file" accept="application/pdf,.pdf" aria-invalid={Boolean(fieldErrors.rcDocumentImage)} aria-describedby="rcDocumentImage-error rcDocumentImage-help" />
+                            <span className="form-helper" id="rcDocumentImage-help">Upload RC document as PDF only.</span>
+                          </FormField>
+                        </>
+                      )}
+                    </>
+                  )}
+                </>
+              )}
+              {mode !== "forgot" && (formMode !== "register" || registrationStep === "details") && (
+                <FormField name="email" error={fieldErrors.email}>
+                  <input name="email" placeholder="Gmail ID / email" type="email" autoComplete="email" aria-invalid={Boolean(fieldErrors.email)} aria-describedby="email-error" />
+                </FormField>
+              )}
+              {formMode === "register" && registrationStep === "verify" && (
+                <FormField name="registrationOtp" error={fieldErrors.registrationOtp}>
+                  <input name="registrationOtp" placeholder="Email verification code" inputMode="numeric" aria-invalid={Boolean(fieldErrors.registrationOtp)} aria-describedby="registrationOtp-error" />
+                </FormField>
+              )}
+              {mode !== "forgot" && (formMode !== "register" || registrationStep === "details") && (
+                <FormField name="password" error={fieldErrors.password}>
+                  <div className="password-input-wrap">
+                    <input name="password" placeholder="Password" type={showAuthPassword ? "text" : "password"} autoComplete={formMode === "register" ? "new-password" : "current-password"} aria-invalid={Boolean(fieldErrors.password)} aria-describedby="password-error password-help" />
+                    <button type="button" className="password-visibility-button" onClick={() => setShowAuthPassword((value) => !value)} aria-label={showAuthPassword ? "Hide password" : "Show password"}>
+                      {showAuthPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                    </button>
+                  </div>
+                  {formMode === "register" && <span className="form-helper" id="password-help">Use 8+ characters with uppercase, lowercase, number, and symbol.</span>}
+                  {formMode === "login" && <button type="button" className="text-link forgot-password-link" onClick={openForgotPassword}>Forgot password?</button>}
+                </FormField>
+              )}
+              {mode === "forgot" && (
+                <>
+                  {recoveryStep === "request" && (
+                    <FormField name="identity" error={fieldErrors.identity}>
+                      <input
+                        name="identity"
+                        placeholder="Registered email or mobile"
+                        type="text"
+                        autoComplete="username"
+                        value={identity}
+                        onChange={(event) => setIdentity(event.target.value)}
+                        aria-invalid={Boolean(fieldErrors.identity)}
+                        aria-describedby="identity-error"
+                      />
+                    </FormField>
+                  )}
+                  {recoveryStep === "otp" && (
+                    <FormField name="otp" error={fieldErrors.otp}>
+                      <input
+                        name="otp"
+                        placeholder="Verification code"
+                        type="text"
+                        autoComplete="one-time-code"
+                        value={otp}
+                        onChange={(event) => setOtp(event.target.value)}
+                        aria-invalid={Boolean(fieldErrors.otp)}
+                        aria-describedby="otp-error"
+                      />
+                    </FormField>
+                  )}
+                  {recoveryStep === "password" && (
+                    <>
+                      <FormField name="newPassword" error={fieldErrors.newPassword}>
+                        <div className="password-input-wrap">
+                          <input
+                            name="newPassword"
+                            placeholder="New password"
+                            type={showNewPassword ? "text" : "password"}
+                            autoComplete="new-password"
+                            value={newPassword}
+                            onChange={(event) => setNewPassword(event.target.value)}
+                            aria-invalid={Boolean(fieldErrors.newPassword)}
+                            aria-describedby="newPassword-error newPassword-help"
+                          />
+                          <button type="button" className="password-visibility-button" onClick={() => setShowNewPassword((value) => !value)} aria-label={showNewPassword ? "Hide password" : "Show password"}>
+                            {showNewPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                          </button>
+                        </div>
+                        <span className="form-helper" id="newPassword-help">Use 8+ characters with uppercase, lowercase, number, and symbol.</span>
+                      </FormField>
+                      <FormField name="confirmPassword" error={fieldErrors.confirmPassword}>
+                        <div className="password-input-wrap">
+                          <input
+                            name="confirmPassword"
+                            placeholder="Confirm new password"
+                            type={showConfirmPassword ? "text" : "password"}
+                            autoComplete="new-password"
+                            value={confirmPassword}
+                            onChange={(event) => setConfirmPassword(event.target.value)}
+                            aria-invalid={Boolean(fieldErrors.confirmPassword)}
+                            aria-describedby="confirmPassword-error"
+                          />
+                          <button type="button" className="password-visibility-button" onClick={() => setShowConfirmPassword((value) => !value)} aria-label={showConfirmPassword ? "Hide password" : "Show password"}>
+                            {showConfirmPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                          </button>
+                        </div>
+                      </FormField>
+                    </>
+                  )}
+                </>
+              )}
+              {formMode === "register" && registrationStep === "details" && (
+                <label className={`consent-line ${fieldErrors.consent ? "invalid" : ""}`}>
+                  <input name="consent" type="checkbox" aria-invalid={Boolean(fieldErrors.consent)} aria-describedby="consent-error" />
+                  I agree to CarHub terms, privacy policy, and secure booking updates.
+                  {fieldErrors.consent && <span className="field-error" id="consent-error">{fieldErrors.consent}</span>}
+                </label>
+              )}
+              {error && <div className="error-box"><span>{error}</span></div>}
+              {notice && <div className="notice-panel">{notice}</div>}
+              <button className="primary-button auth-submit-button" type="submit" disabled={submitting}>
+                {submitting
+                  ? "Please wait..."
+                  : mode === "forgot"
+                    ? recoveryStep === "request"
+                      ? "Send verification code"
+                      : recoveryStep === "otp"
+                        ? "Verify code"
+                        : "Reset password"
+                    : formMode === "register"
+                      ? registrationStep === "verify" ? "Verify email and complete" : "Create account"
+                      : "Sign in securely"}
+              </button>
+            </form>
+          </>
         )}
-        {mode === "register" && (
-          <div className="auth-switch-panel">
-            <span>Already registered?</span>
-            <Link to="/login">Sign in instead</Link>
-          </div>
-        )}
-        <form className="stacked-form" onSubmit={submit}>
-          {mode === "register" && (
-            <FormField name="fullName" error={fieldErrors.fullName}>
-              <input name="fullName" placeholder="Full name" autoComplete="name" aria-invalid={Boolean(fieldErrors.fullName)} aria-describedby="fullName-error" />
-            </FormField>
-          )}
-          {mode === "register" && (
-            <FormField name="mobile" error={fieldErrors.mobile}>
-              <input name="mobile" placeholder="Mobile number" inputMode="tel" autoComplete="tel" aria-invalid={Boolean(fieldErrors.mobile)} aria-describedby="mobile-error" />
-            </FormField>
-          )}
-          {mode !== "forgot" && (
-            <FormField name="email" error={fieldErrors.email}>
-              <input name="email" placeholder="Email" type="email" autoComplete="email" aria-invalid={Boolean(fieldErrors.email)} aria-describedby="email-error" />
-            </FormField>
-          )}
-          {mode === "register" && (
-            <FormField name="city" error={fieldErrors.city}>
-              <input name="city" placeholder="City" autoComplete="address-level2" aria-invalid={Boolean(fieldErrors.city)} aria-describedby="city-error" />
-            </FormField>
-          )}
-          {mode === "register" && (
-            <FormField name="state" error={fieldErrors.state}>
-              <input name="state" placeholder="State" autoComplete="address-level1" aria-invalid={Boolean(fieldErrors.state)} aria-describedby="state-error" />
-            </FormField>
-          )}
-          {mode === "register" && (
-            <FormField name="country" error={fieldErrors.country}>
-              <input name="country" placeholder="Country" autoComplete="country-name" aria-invalid={Boolean(fieldErrors.country)} aria-describedby="country-error" />
-            </FormField>
-          )}
-          {mode !== "forgot" && (
-            <FormField name="password" error={fieldErrors.password}>
-              <input name="password" placeholder="Password" type="password" autoComplete={mode === "register" ? "new-password" : "current-password"} aria-invalid={Boolean(fieldErrors.password)} aria-describedby="password-error password-help" />
-              {mode === "register" && <span className="form-helper" id="password-help">Use 8+ characters with uppercase, lowercase, number, and symbol.</span>}
-            </FormField>
-          )}
-          {mode === "forgot" && (
-            <FormField name="identity" error={fieldErrors.identity}>
-              <input name="identity" placeholder="Registered email or mobile number" autoComplete="email" aria-invalid={Boolean(fieldErrors.identity)} aria-describedby="identity-error" />
-            </FormField>
-          )}
-          {mode === "register" && (
-            <label className={`consent-line ${fieldErrors.consent ? "invalid" : ""}`}>
-              <input name="consent" type="checkbox" aria-invalid={Boolean(fieldErrors.consent)} aria-describedby="consent-error" />
-              I agree to CarHub terms, privacy policy, and controlled provider data sharing.
-              {fieldErrors.consent && <span className="field-error" id="consent-error">{fieldErrors.consent}</span>}
-            </label>
-          )}
-          {error && <div className="error-box"><span>{error}</span></div>}
-          {notice && <div className="notice-panel">{notice}</div>}
-          <button className="primary-button auth-submit-button" type="submit" disabled={submitting}>
-            {submitting ? "Please wait..." : mode === "register" ? "Create account" : mode === "forgot" ? "Request recovery" : "Sign in securely"}
-          </button>
-        </form>
-        <div className="role-switcher" aria-label="Seeded demo role shortcuts">
-          <button onClick={() => demo("CUSTOMER")} disabled={submitting}>Customer demo</button>
-          <button onClick={() => demo("PROVIDER")} disabled={submitting}>Provider demo</button>
-        </div>
       </motion.section>
     </div>
   );
@@ -605,349 +1666,570 @@ function FormField({ name, error, children }: { name: string; error?: string; ch
   );
 }
 
-export function RequestWizardPage() {
-  const { packageId } = useParams();
-  const [step, setStep] = useState(1);
-  const [errors, setErrors] = useState<string[]>([]);
-  const [submitted, setSubmitted] = useState(false);
-
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const result = requestSchema.safeParse(Object.fromEntries(form));
-    if (!result.success) {
-      setErrors(result.error.issues.map((issue) => issue.message));
-      return;
-    }
-    setErrors([]);
-    const [budgetMin, budgetMax] = String(result.data.budget).split("-").map((value) => Number(value.trim()) || undefined);
-    try {
-      await api.post<ApiRequest>("/customer/requests", {
-        packageId,
-        destination: result.data.destination,
-        currentLocation: result.data.currentLocation,
-        travelersCount: result.data.travelers,
-        travelStartDate: result.data.startDate,
-        travelEndDate: result.data.endDate,
-        budgetMin,
-        budgetMax,
-        tripType: result.data.tripType,
-        specialRequirements: String(form.get("specialRequirements") ?? ""),
-        emergencyContactName: "Emergency Contact",
-        emergencyContactMobile: result.data.emergencyContact
-      });
-      setSubmitted(true);
-    } catch (exception) {
-      setErrors([exception instanceof Error ? exception.message : "Request submission failed"]);
-    }
-  }
-
-  if (submitted) {
-    return (
-      <div className="page padded-page">
-        <section className="success-panel">
-          <CheckCircle2 size={48} />
-          <h1>Request submitted to CarHub admin</h1>
-          <p>CarHub admin will review it before any provider receives scoped details.</p>
-          <Link className="primary-button" to="/customer/requests">View My Requests</Link>
-        </section>
-      </div>
-    );
-  }
-
-  return (
-    <div className="page padded-page">
-      <section className="wizard-shell">
-        <div className="wizard-summary">
-          <span className="eyebrow">Step {step} of 3</span>
-          <h1>Request selected package</h1>
-          <p>CarHub reviews every request before provider sharing.</p>
-          <div className="progress-line"><span style={{ width: `${(step / 3) * 100}%` }} /></div>
-        </div>
-        <form className="wizard-form" onSubmit={submit}>
-          <fieldset className={`step-pane ${step === 1 ? "active" : ""}`}>
-            <input name="destination" placeholder="Destination" required />
-            <input name="currentLocation" placeholder="Current location" required />
-            <input name="travelers" placeholder="Number of travelers" type="number" required />
-          </fieldset>
-          <fieldset className={`step-pane ${step === 2 ? "active" : ""}`}>
-            <input name="startDate" type="date" required />
-            <input name="endDate" type="date" required />
-            <input name="budget" placeholder="Budget range, example 20000-50000" required />
-          </fieldset>
-          <fieldset className={`step-pane ${step === 3 ? "active" : ""}`}>
-            <input name="tripType" placeholder="Trip type" required />
-            <input name="emergencyContact" placeholder="Emergency contact mobile" required />
-            <textarea name="specialRequirements" placeholder="Special requirements" />
-          </fieldset>
-          {errors.length > 0 && <div className="error-box">{errors.map((error) => <span key={error}>{error}</span>)}</div>}
-          <div className="wizard-actions">
-            <button className="outline-button" type="button" disabled={step === 1} onClick={() => setStep(step - 1)}>Back</button>
-            {step < 3 ? (
-              <button className="primary-button" type="button" onClick={() => setStep(step + 1)}>Continue</button>
-            ) : (
-              <button className="primary-button" type="submit">Submit Request</button>
-            )}
-          </div>
-        </form>
-      </section>
-    </div>
-  );
-}
-
 export function CustomerDashboard() {
-  const [requests, setRequests] = useState<ApiRequest[]>([]);
-  const [tickets, setTickets] = useState<SupportTicket[]>([]);
-  const [message, setMessage] = useState("");
+  const [bookingTickets, setBookingTickets] = useState<BookingTicket[]>([]);
+  const activeBookings = bookingTickets.filter((item) => item.status === "ASSIGNED" || item.status === "BOOKED");
+  const nextTrip = activeBookings[0] ?? bookingTickets[0];
 
   async function loadCustomerWorkspace() {
-    const [requestData, ticketData] = await Promise.all([
-      api.get<ApiRequest[]>("/customer/requests").catch(() => []),
-      api.get<SupportTicket[]>("/customer/support").catch(() => [])
-    ]);
-    setRequests(requestData);
-    setTickets(ticketData);
+    const bookingTicketData = await api.get<BookingTicket[]>("/tickets").catch(() => []);
+    setBookingTickets(bookingTicketData);
   }
 
   useEffect(() => { void loadCustomerWorkspace(); }, []);
 
-  async function createSupportTicket(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setMessage("");
-    const form = new FormData(event.currentTarget);
-    const requestId = String(form.get("requestId") ?? "");
-    try {
-      await api.post<SupportTicket>("/customer/support", {
-        requestId: requestId || null,
-        category: form.get("category"),
-        priority: form.get("priority"),
-        subject: form.get("subject"),
-        description: form.get("description")
-      });
-      event.currentTarget.reset();
-      setMessage("Support ticket created. CarHub operations can now coordinate under company control.");
-      await loadCustomerWorkspace();
-    } catch (exception) {
-      setMessage(exception instanceof Error ? exception.message : "Support ticket could not be created.");
-    }
-  }
-
-  async function submitFeedback(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setMessage("");
-    const form = new FormData(event.currentTarget);
-    try {
-      await api.post<FeedbackItem>("/customer/feedback", {
-        requestId: form.get("requestId"),
-        packageRating: Number(form.get("packageRating")),
-        supportRating: Number(form.get("supportRating")),
-        comment: form.get("comment")
-      });
-      event.currentTarget.reset();
-      setMessage("Feedback submitted for moderation.");
-    } catch (exception) {
-      setMessage(exception instanceof Error ? exception.message : "Feedback could not be submitted.");
-    }
-  }
-
-  const completedRequests = requests.filter((request) => request.status === "COMPLETED");
-
   return (
     <DashboardShell title="Customer workspace" role="CUSTOMER">
-      <Metric icon={<ClipboardCheck />} label="Requests" value={`${requests.length} total`} tone="blue" />
-      <Metric icon={<Clock3 />} label="Under review" value={`${requests.filter((item) => item.status === "UNDER_REVIEW").length} request`} tone="amber" />
-      <Metric icon={<Bell />} label="Support tickets" value={`${tickets.length} open`} tone="green" />
-      <RequestRows requests={requests} />
-      <div className="ops-panel">
-        <h3>Support and helpline</h3>
-        {message && <p className="trust-note">{message}</p>}
-        <form className="compact-form" onSubmit={createSupportTicket}>
-          <select name="requestId" aria-label="Related request">
-            <option value="">General support request</option>
-            {requests.map((request) => (
-              <option key={request.id} value={request.id}>{request.destination} - {request.status.replace(/_/g, " ")}</option>
-            ))}
-          </select>
-          <select name="category" defaultValue="TRAVEL_SUPPORT" aria-label="Support category">
-            <option value="TRAVEL_SUPPORT">Travel support</option>
-            <option value="PROVIDER_NO_SHOW">Provider no-show</option>
-            <option value="MEDICAL_EMERGENCY">Medical emergency</option>
-            <option value="RESCHEDULE">Reschedule</option>
-          </select>
-          <select name="priority" defaultValue="MEDIUM" aria-label="Priority">
-            <option value="LOW">Low</option>
-            <option value="MEDIUM">Medium</option>
-            <option value="HIGH">High</option>
-            <option value="EMERGENCY">Emergency</option>
-          </select>
-          <input name="subject" placeholder="Subject" required />
-          <textarea name="description" placeholder="Describe what happened" required />
-          <button className="primary-button" type="submit">Create support ticket</button>
-        </form>
-        <div className="mini-list">
-          {tickets.length === 0 && <p className="muted">No support tickets yet.</p>}
-          {tickets.map((ticket) => (
-            <div className="status-line" key={ticket.id}>
-              <strong>{ticket.subject}</strong>
-              <span>{ticket.priority} - {ticket.status}</span>
-            </div>
-          ))}
+      <section className="customer-workspace">
+        <div className="customer-overview">
+          <div className="customer-overview-copy">
+            <span className="eyebrow"><TicketCheck size={16} />Trip command center</span>
+            <h2>{nextTrip ? `Next pickup for ${nextTrip.destination}` : "Plan your next CarHub trip"}</h2>
+            <p>{nextTrip ? `${nextTrip.packageName} is ${nextTrip.status.toLowerCase().replace("_", " ")} with pickup from ${nextTrip.pickupLocation ?? "your selected location"}.` : "Your bookings, provider details, pickup schedule, and vehicle information will appear here after checkout."}</p>
+          </div>
+          <div className="customer-overview-card">
+            <span>Next pickup</span>
+            <strong>{nextTrip?.pickupDate ?? "Not scheduled"}</strong>
+            <small>{nextTrip?.pickupTime ? `${nextTrip.pickupTime} from ${nextTrip.pickupLocation ?? "pickup point"}` : "Book a package to generate a travel ticket."}</small>
+          </div>
         </div>
-      </div>
-      <div className="ops-panel">
-        <h3>Post-trip feedback</h3>
-        {completedRequests.length === 0 ? (
-          <p className="muted">Feedback opens after the company marks a trip as completed.</p>
-        ) : (
-          <form className="compact-form" onSubmit={submitFeedback}>
-            <select name="requestId" aria-label="Completed request">
-              {completedRequests.map((request) => (
-                <option key={request.id} value={request.id}>{request.destination}</option>
+
+        <div className="customer-grid">
+          <div className="ops-panel customer-bookings-panel">
+            <div className="panel-title-row">
+              <div>
+                <h3>Booked tickets</h3>
+                <p className="muted">Provider, pickup, route, and vehicle details in one place.</p>
+              </div>
+              <Link className="outline-button" to="/packages">New trip<ArrowRight size={16} /></Link>
+            </div>
+            {bookingTickets.length === 0 && (
+              <div className="customer-empty-state">
+                <TicketCheck size={30} />
+                <strong>No confirmed bookings yet.</strong>
+                <p className="muted">Explore packages and complete checkout to see tickets here.</p>
+              </div>
+            )}
+            <div className="customer-ticket-list">
+              {bookingTickets.map((ticket) => (
+                <article className="customer-ticket-card" key={ticket.id}>
+                  <div className="ticket-card-main">
+                    <div>
+                      <img className="ticket-card-logo" src="/carhub-logo.png" alt="CarHub" />
+                      <span className={`status-pill ${ticket.status.toLowerCase()}`}>{ticket.status.replace("_", " ")}</span>
+                      <h4>{ticket.packageName}</h4>
+                      <p><MapPin size={15} />{ticket.destination}</p>
+                    </div>
+                    <strong>{ticket.ticketNumber}</strong>
+                  </div>
+                  <div className="ticket-detail-grid">
+                    <div className="ticket-detail-item">
+                      <span><CalendarDays size={15} />Pickup date</span>
+                      <strong>{ticket.pickupDate ?? "Date pending"}</strong>
+                    </div>
+                    <div className="ticket-detail-item">
+                      <span><Clock3 size={15} />Pickup time</span>
+                      <strong>{ticket.pickupTime ?? "Time pending"}</strong>
+                    </div>
+                    <div className="ticket-detail-item">
+                      <span><MapPin size={15} />Pickup</span>
+                      <strong>{ticket.pickupLocation ?? "Pickup point pending"}</strong>
+                    </div>
+                    <div className="ticket-detail-item">
+                      <span><Users size={15} />Travellers</span>
+                      <strong>{ticket.travellersCount}</strong>
+                    </div>
+                    <div className="ticket-detail-item">
+                      <span><ClipboardCheck size={15} />Car type</span>
+                      <strong>{ticket.carType.replace("_", " ").toLowerCase()}</strong>
+                    </div>
+                    <div className="ticket-detail-item">
+                      <span><MapPin size={15} />Route</span>
+                      <strong>{ticket.route}</strong>
+                    </div>
+                  </div>
+                  <div className="ticket-provider-row">
+                    <div className="ticket-detail-item">
+                      <span><ShieldCheck size={15} />Provider</span>
+                      <strong>{ticket.providerBusinessName}</strong>
+                    </div>
+                    <div className="ticket-detail-item">
+                      <span><Headphones size={15} />Contact</span>
+                      <strong>{ticket.providerContactNumber}</strong>
+                    </div>
+                  </div>
+                  <div className="ticket-vehicle-line">
+                    <div>
+                      <span>Vehicle</span>
+                      <strong>{ticket.carDetails || [ticket.carModel, ticket.carNumber, ticket.carColor].filter(Boolean).join(" - ") || "Vehicle details pending"}</strong>
+                    </div>
+                    {ticket.specialRequests && (
+                      <div>
+                        <span>Special request</span>
+                        <strong>{ticket.specialRequests}</strong>
+                      </div>
+                    )}
+                  </div>
+                  <div className="ticket-card-actions">
+                    <button className="outline-button" type="button" onClick={() => void downloadTicketPdf(ticket.id, ticket.ticketNumber)}>
+                      <Download size={16} />
+                      PDF
+                    </button>
+                  </div>
+                </article>
               ))}
-            </select>
-            <select name="packageRating" defaultValue="5" aria-label="Package rating">
-              {[5, 4, 3, 2, 1].map((rating) => <option key={rating} value={rating}>{rating} package rating</option>)}
-            </select>
-            <select name="supportRating" defaultValue="5" aria-label="Support rating">
-              {[5, 4, 3, 2, 1].map((rating) => <option key={rating} value={rating}>{rating} support rating</option>)}
-            </select>
-            <textarea name="comment" placeholder="Share your travel and support experience" />
-            <button className="primary-button" type="submit">Submit feedback</button>
-          </form>
-        )}
-      </div>
+            </div>
+          </div>
+        </div>
+      </section>
     </DashboardShell>
   );
 }
 
 export function ProviderDashboard() {
-  const [assignments, setAssignments] = useState<ProviderAssignment[]>([]);
+  const [activeSection, setActiveSection] = useState<"tickets" | "submit" | "manage">("tickets");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [bookingTickets, setBookingTickets] = useState<ProviderTicket[]>([]);
   const [packages, setPackages] = useState<ApiPackage[]>([]);
   const [message, setMessage] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [submittingPackage, setSubmittingPackage] = useState(false);
+  const [selectedPackageDestination, setSelectedPackageDestination] = useState("");
+  const [selectedManageDestinations, setSelectedManageDestinations] = useState<Record<string, string>>({});
+  const [selectedPickupAvailabilityMode, setSelectedPickupAvailabilityMode] = useState("ALWAYS");
+  const [selectedManagePickupModes, setSelectedManagePickupModes] = useState<Record<string, string>>({});
+  const destinationOptions = useMemo(() => {
+    return Array.from(new Set([...fallbackPackages.map((item) => item.place), ...packages.map((item) => item.destination)])).filter(Boolean).sort();
+  }, [packages]);
 
   async function loadProviderWorkspace() {
-    const [assignmentData, packageData] = await Promise.all([
-      api.get<ProviderAssignment[]>("/provider/assignments").catch(() => []),
-      api.get<ApiPackage[]>("/provider/packages").catch(() => [])
+    const [packageData, ticketData] = await Promise.all([
+      api.get<ApiPackage[]>("/provider/packages").catch(() => []),
+      api.get<ProviderTicket[]>("/provider/tickets").catch(() => [])
     ]);
-    setAssignments(assignmentData);
     setPackages(packageData);
+    setBookingTickets(ticketData);
   }
 
   useEffect(() => { void loadProviderWorkspace(); }, []);
 
-  async function updateStatus(id: string, status: RequestStatus) {
-    setMessage("");
-    try {
-      await api.post<ProviderAssignment>(`/provider/assignments/${id}/status`, { status, reason: `Provider updated to ${status}` });
-      await loadProviderWorkspace();
-      setMessage(`Assignment updated to ${status.replace(/_/g, " ")}.`);
-    } catch (exception) {
-      setMessage(exception instanceof Error ? exception.message : "Provider status update failed.");
-    }
-  }
-
   async function submitPackage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const formElement = event.currentTarget;
     setMessage("");
     setFieldErrors({});
-    const form = new FormData(event.currentTarget);
-    const result = providerPackageSchema.safeParse(Object.fromEntries(form));
+    const form = new FormData(formElement);
+    const raw = Object.fromEntries(form);
+    const carPhotoFile = form.get("carPhotoUrl");
+    const licenseFile = form.get("licenseDocumentUrl");
+    const rcFile = form.get("rcDocumentUrl");
+    raw.carPhotoUrl = carPhotoFile instanceof File && carPhotoFile.size > 0 ? carPhotoFile.name : "";
+    raw.licenseDocumentUrl = licenseFile instanceof File && licenseFile.size > 0 ? licenseFile.name : "";
+    raw.rcDocumentUrl = rcFile instanceof File && rcFile.size > 0 ? rcFile.name : "";
+    const uploadErrors = getProviderUploadErrors(form, true, true);
+    if (Object.keys(uploadErrors).length > 0) {
+      setFieldErrors(uploadErrors);
+      return;
+    }
+    const result = providerPackageSchema.safeParse(raw);
     if (!result.success) {
       setFieldErrors(getFieldErrors(result.error));
       return;
     }
     setSubmittingPackage(true);
     try {
+      const destination = result.data.destination === "__custom" ? result.data.customDestination?.trim() : result.data.destination;
+      const carPhotoUrl = carPhotoFile instanceof File && carPhotoFile.size > 0 ? await fileToDataUrl(carPhotoFile) : result.data.carPhotoUrl;
+      const licenseDocumentUrl = licenseFile instanceof File && licenseFile.size > 0 ? await fileToDataUrl(licenseFile) : result.data.licenseDocumentUrl;
+      const rcDocumentUrl = rcFile instanceof File && rcFile.size > 0 ? await fileToDataUrl(rcFile) : (result.data.rcDocumentUrl ?? undefined);
       await api.post<ApiPackage>("/provider/packages", {
         ...result.data,
-        currency: result.data.currency.toUpperCase()
+        destination,
+        seatsAvailable: result.data.carType === "SIX_SEATER" ? 6 : 4,
+        carPhotoUrl,
+        licenseDocumentUrl,
+        rcDocumentUrl
       });
-      event.currentTarget.reset();
-      setMessage("Package proposal submitted to CarHub admin. It is hidden from customers until approval.");
+      formElement.reset();
+      setSelectedPackageDestination("");
+      setSelectedPickupAvailabilityMode("ALWAYS");
+      setMessage("Car details and pickup availability are live for customers.");
       await loadProviderWorkspace();
-    } catch {
-      setMessage("Package proposal could not be submitted. Please review details and try again.");
+    } catch (exception) {
+      const apiFieldErrors = toProviderFieldErrors(exception);
+      if (Object.keys(apiFieldErrors).length > 0) {
+        setFieldErrors(apiFieldErrors);
+      } else {
+        setMessage(exception instanceof Error ? exception.message : "Package submit failed.");
+      }
     } finally {
       setSubmittingPackage(false);
     }
   }
 
-  return (
-    <DashboardShell title="Provider assignments" role="PROVIDER">
-      <Metric icon={<TicketCheck />} label="Approved assignments" value={`${assignments.length}`} tone="blue" />
-      <Metric icon={<LockKeyhole />} label="Unapproved leads visible" value="0" tone="green" />
-      <Metric icon={<Clock3 />} label="Package proposals" value={`${packages.length}`} tone="amber" />
-      <div className="ops-panel">
-        <h3>Submit package for company approval</h3>
-        <p className="muted">Provider package data is sent to CarHub admin first. Customers see it only after company approval.</p>
-        {message && <p className="trust-note">{message}</p>}
-        <form className="compact-form package-proposal-form" onSubmit={submitPackage}>
-          <FormField name="title" error={fieldErrors.title}>
-            <input name="title" placeholder="Package title" aria-invalid={Boolean(fieldErrors.title)} aria-describedby="title-error" />
-          </FormField>
-          <FormField name="destination" error={fieldErrors.destination}>
-            <input name="destination" placeholder="Destination" aria-invalid={Boolean(fieldErrors.destination)} aria-describedby="destination-error" />
-          </FormField>
-          <FormField name="category" error={fieldErrors.category}>
-            <input name="category" placeholder="Category" aria-invalid={Boolean(fieldErrors.category)} aria-describedby="category-error" />
-          </FormField>
-          <FormField name="startingPrice" error={fieldErrors.startingPrice}>
-            <input name="startingPrice" placeholder="Starting price" type="number" min="1" aria-invalid={Boolean(fieldErrors.startingPrice)} aria-describedby="startingPrice-error" />
-          </FormField>
-          <FormField name="currency" error={fieldErrors.currency}>
-            <input name="currency" placeholder="Currency, example INR" defaultValue="INR" maxLength={3} aria-invalid={Boolean(fieldErrors.currency)} aria-describedby="currency-error" />
-          </FormField>
-          <FormField name="durationDays" error={fieldErrors.durationDays}>
-            <input name="durationDays" placeholder="Duration days" type="number" min="1" max="60" aria-invalid={Boolean(fieldErrors.durationDays)} aria-describedby="durationDays-error" />
-          </FormField>
-          <FormField name="summary" error={fieldErrors.summary}>
-            <input name="summary" placeholder="Short customer-facing summary" aria-invalid={Boolean(fieldErrors.summary)} aria-describedby="summary-error" />
-          </FormField>
-          <FormField name="imageUrl" error={fieldErrors.imageUrl}>
-            <input name="imageUrl" placeholder="Image URL" aria-invalid={Boolean(fieldErrors.imageUrl)} aria-describedby="imageUrl-error" />
-          </FormField>
-          <FormField name="description" error={fieldErrors.description}>
-            <textarea name="description" placeholder="Detailed itinerary, inclusions, execution capability, and service notes" aria-invalid={Boolean(fieldErrors.description)} aria-describedby="description-error" />
-          </FormField>
-          <button className="primary-button" type="submit" disabled={submittingPackage}>
-            {submittingPackage ? "Submitting..." : "Submit to admin review"}
-          </button>
-        </form>
-      </div>
-      <div className="ops-panel">
-        <h3>Package approval status</h3>
-        {packages.length === 0 && <p className="muted">No package proposals submitted yet.</p>}
-        <div className="proposal-grid">
-          {packages.map((pack) => (
-            <div className="status-line" key={pack.id}>
-              <strong>{pack.title}</strong>
-              <span>{pack.destination} - {(pack.availabilityStatus ?? "PENDING").replace(/_/g, " ")}</span>
-              {pack.reviewNotes && <small>{pack.reviewNotes}</small>}
-            </div>
-          ))}
+  async function repostPackage(packageId: string) {
+    setMessage("");
+    try {
+      await api.post<ApiPackage>(`/provider/packages/${packageId}/repost`, undefined);
+      setMessage("Package reposted successfully and is pending admin review.");
+      await loadProviderWorkspace();
+    } catch (exception) {
+      setMessage(exception instanceof Error ? exception.message : "Repost failed. Please try again.");
+    }
+  }
+
+  async function updatePackageDetails(event: FormEvent<HTMLFormElement>, packageId: string) {
+    event.preventDefault();
+    setMessage("");
+    setFieldErrors({});
+    const form = new FormData(event.currentTarget);
+    const raw = Object.fromEntries(form);
+    const carPhotoFile = form.get("carPhotoUrl");
+    const existingCarPhotoUrl = String(form.get("existingCarPhotoUrl") ?? "");
+    const licenseFile = form.get("licenseDocumentUrl");
+    const existingLicenseDocumentUrl = String(form.get("existingLicenseDocumentUrl") ?? "");
+    const rcFile = form.get("rcDocumentUrl");
+    const existingRcDocumentUrl = String(form.get("existingRcDocumentUrl") ?? "");
+    raw.carPhotoUrl = carPhotoFile instanceof File && carPhotoFile.size > 0 ? carPhotoFile.name : existingCarPhotoUrl;
+    raw.licenseDocumentUrl = licenseFile instanceof File && licenseFile.size > 0 ? licenseFile.name : existingLicenseDocumentUrl;
+    raw.rcDocumentUrl = rcFile instanceof File && rcFile.size > 0 ? rcFile.name : existingRcDocumentUrl;
+    const uploadErrors = getProviderUploadErrors(form, !existingCarPhotoUrl, !existingLicenseDocumentUrl);
+    if (Object.keys(uploadErrors).length > 0) {
+      setFieldErrors(uploadErrors);
+      return;
+    }
+    const result = providerPackageSchema.safeParse(raw);
+    if (!result.success) {
+      setFieldErrors(getFieldErrors(result.error));
+      return;
+    }
+    try {
+      const destination = result.data.destination === "__custom" ? result.data.customDestination?.trim() : result.data.destination;
+      const carPhotoUrl = carPhotoFile instanceof File && carPhotoFile.size > 0 ? await fileToDataUrl(carPhotoFile) : existingCarPhotoUrl;
+      const licenseDocumentUrl = licenseFile instanceof File && licenseFile.size > 0 ? await fileToDataUrl(licenseFile) : existingLicenseDocumentUrl;
+      const rcDocumentUrl = rcFile instanceof File && rcFile.size > 0 ? await fileToDataUrl(rcFile) : (existingRcDocumentUrl || undefined);
+      await api.put<ApiPackage>(`/provider/packages/${packageId}`, {
+        ...result.data,
+        destination,
+        seatsAvailable: result.data.carType === "SIX_SEATER" ? 6 : 4,
+        carPhotoUrl,
+        licenseDocumentUrl,
+        rcDocumentUrl
+      });
+      setSelectedManageDestinations((current) => ({ ...current, [packageId]: destination ?? "" }));
+      setMessage("Package vehicle and travel details updated for admin review.");
+      await loadProviderWorkspace();
+    } catch (exception) {
+      const apiFieldErrors = toProviderFieldErrors(exception);
+      if (Object.keys(apiFieldErrors).length > 0) {
+        setFieldErrors(apiFieldErrors);
+      } else {
+        setMessage(exception instanceof Error ? exception.message : "Package update failed.");
+      }
+    }
+  }
+
+  const providerSections = [
+    { id: "tickets" as const, label: "My tickets",      description: "Confirmed customer pickups assigned to you.", count: bookingTickets.length, icon: <TicketCheck size={18} /> },
+    { id: "submit"  as const, label: "Submit package",  description: "Add destination, vehicle and availability.",  count: 0,                     icon: <PackageCheck size={18} /> },
+    { id: "manage"  as const, label: "Manage packages", description: "Update your submitted package details.",      count: packages.length,       icon: <ClipboardCheck size={18} /> },
+  ];
+  const currentProviderSection = providerSections.find((s) => s.id === activeSection) ?? providerSections[0];
+
+  function renderTicketsPanel() {
+    return (
+      <div className="ops-panel provider-panel">
+        <div className="panel-title-row">
+          <div>
+            <h3>Direct booking tickets</h3>
+            <p className="muted">Confirmed customer pickups assigned to your provider account.</p>
+          </div>
+          <span className="status-pill booked">{bookingTickets.length} ticket{bookingTickets.length === 1 ? "" : "s"}</span>
         </div>
-      </div>
-      <div className="ops-panel">
-        <h3>Scoped customer payload</h3>
-        {assignments.length === 0 && <p className="muted">No assigned approved work yet.</p>}
-        {assignments.map((assignment) => (
-          <div className="timeline-row" key={assignment.assignmentId}>
-            <strong>{assignment.status.replace(/_/g, " ")}</strong>
-            <span>{assignment.visibleFields}</span>
-            <p className="muted">{assignment.maskedPayload}</p>
-            <div className="row-actions">
-              <button className="outline-button" onClick={() => updateStatus(assignment.assignmentId, "ACCEPTED_BY_PROVIDER")}>Accept</button>
-              <button className="outline-button" onClick={() => updateStatus(assignment.assignmentId, "IN_PROGRESS")}>In progress</button>
-              <button className="outline-button" onClick={() => updateStatus(assignment.assignmentId, "SUPPORT_ESCALATION")}>Escalate</button>
-              <button className="primary-button" onClick={() => updateStatus(assignment.assignmentId, "COMPLETED")}>Mark completed</button>
+        {bookingTickets.length === 0 && <p className="muted">No direct booking tickets assigned yet.</p>}
+        {bookingTickets.map((ticket) => (
+          <div className="provider-ticket-card" key={ticket.id}>
+            <div>
+              <strong>{ticket.ticketNumber}</strong>
+              <h4>{ticket.packageName}</h4>
+              <p><MapPin size={15} />{ticket.destination}</p>
             </div>
+            <div className="provider-ticket-grid">
+              <span><CalendarDays size={15} />{ticket.pickupDate ?? "Date pending"}</span>
+              <span><Clock3 size={15} />{ticket.pickupTime ?? "Time pending"}</span>
+              <span><Users size={15} />{ticket.travellersCount} travellers</span>
+              <span><ClipboardCheck size={15} />{ticket.carType.replace("_", " ").toLowerCase()}</span>
+            </div>
+            <small>Customer ref: {ticket.maskedCustomerRef}</small>
+            <small>Pickup: {ticket.pickupLocation ?? "Pickup point pending"}</small>
+            <small>Vehicle: {[ticket.carNumber, ticket.carModel].filter(Boolean).join(" - ") || "Vehicle details pending"}</small>
+            {ticket.specialRequests && <small>Notes: {ticket.specialRequests}</small>}
           </div>
         ))}
       </div>
-    </DashboardShell>
+    );
+  }
+
+  function renderSubmitPanel() {
+    return (
+      <div className="ops-panel provider-panel">
+        <div className="panel-title-row">
+          <div>
+            <h3>Submit package</h3>
+            <p className="muted">Add destination, vehicle, licence, and availability details.</p>
+          </div>
+        </div>
+        {message && <p className="trust-note">{message}</p>}
+        <form className="compact-form package-proposal-form" onSubmit={submitPackage}>
+          <div className="provider-form-sections">
+            <section className="provider-form-section">
+              <div className="section-kicker"><MapPin size={17} />Package data</div>
+              <FormField name="destination" error={fieldErrors.destination}>
+                <select
+                  name="destination"
+                  value={selectedPackageDestination}
+                  onChange={(event) => setSelectedPackageDestination(event.target.value)}
+                  aria-invalid={Boolean(fieldErrors.destination)}
+                  aria-describedby="destination-error"
+                >
+                  <option value="" disabled>Select destination</option>
+                  {destinationOptions.map((destination) => <option key={destination} value={destination}>{destination}</option>)}
+                  <option value="__custom">Destination not listed</option>
+                </select>
+              </FormField>
+              {selectedPackageDestination === "__custom" && (
+                <FormField name="customDestination" error={fieldErrors.customDestination}>
+                  <input name="customDestination" placeholder="Type destination if not listed" aria-invalid={Boolean(fieldErrors.customDestination)} aria-describedby="customDestination-error" />
+                </FormField>
+              )}
+              <FormField name="localPlaces" error={fieldErrors.localPlaces}>
+                <textarea name="localPlaces" placeholder="Subplaces or local places covered manually" aria-invalid={Boolean(fieldErrors.localPlaces)} aria-describedby="localPlaces-error" />
+              </FormField>
+              <div className="pickup-schedule-box">
+                <FormField name="pickupAvailabilityMode" error={fieldErrors.pickupAvailabilityMode}>
+                  <select
+                    name="pickupAvailabilityMode"
+                    value={selectedPickupAvailabilityMode}
+                    onChange={(event) => setSelectedPickupAvailabilityMode(event.target.value)}
+                    aria-invalid={Boolean(fieldErrors.pickupAvailabilityMode)}
+                    aria-describedby="pickupAvailabilityMode-error"
+                  >
+                    <option value="ALWAYS">Available 24/7</option>
+                    <option value="SPECIFIC">Specific pickup hours</option>
+                  </select>
+                </FormField>
+                {selectedPickupAvailabilityMode === "SPECIFIC" && (
+                  <div className="pickup-time-window">
+                    <FormField name="pickupStartTime" error={fieldErrors.pickupStartTime}>
+                      <input name="pickupStartTime" type="time" aria-label="Pickup start time" aria-invalid={Boolean(fieldErrors.pickupStartTime)} aria-describedby="pickupStartTime-error" />
+                    </FormField>
+                    <FormField name="pickupEndTime" error={fieldErrors.pickupEndTime}>
+                      <input name="pickupEndTime" type="time" aria-label="Pickup end time" aria-invalid={Boolean(fieldErrors.pickupEndTime)} aria-describedby="pickupEndTime-error" />
+                    </FormField>
+                  </div>
+                )}
+              </div>
+            </section>
+            <section className="provider-form-section">
+              <div className="section-kicker"><CarFront size={17} />Car data</div>
+              <FormField name="carType" error={fieldErrors.carType}>
+                <select name="carType" defaultValue="FOUR_SEATER" aria-invalid={Boolean(fieldErrors.carType)} aria-describedby="carType-error">
+                  <option value="FOUR_SEATER">4 seater</option>
+                  <option value="SIX_SEATER">6 seater</option>
+                </select>
+              </FormField>
+              <FormField name="carNumber" error={fieldErrors.carNumber}>
+                <input name="carNumber" placeholder="Car number" aria-invalid={Boolean(fieldErrors.carNumber)} aria-describedby="carNumber-error" />
+              </FormField>
+              <FormField name="carModel" error={fieldErrors.carModel}>
+                <input name="carModel" placeholder="Car name or model" aria-invalid={Boolean(fieldErrors.carModel)} aria-describedby="carModel-error" />
+              </FormField>
+              <FormField name="carPhotoUrl" error={fieldErrors.carPhotoUrl}>
+                <input name="carPhotoUrl" type="file" accept="image/*" aria-invalid={Boolean(fieldErrors.carPhotoUrl)} aria-describedby="carPhotoUrl-error carPhotoUrl-help" />
+                <span className="form-helper" id="carPhotoUrl-help">Upload clear car photo.</span>
+              </FormField>
+            </section>
+            <section className="provider-form-section">
+              <div className="section-kicker"><IdCard size={17} />Driver &amp; RC details</div>
+              <FormField name="licenseNumber" error={fieldErrors.licenseNumber}>
+                <input name="licenseNumber" placeholder="Driving licence number" aria-invalid={Boolean(fieldErrors.licenseNumber)} aria-describedby="licenseNumber-error" />
+              </FormField>
+              <FormField name="licenseHolderName" error={fieldErrors.licenseHolderName}>
+                <input name="licenseHolderName" placeholder="Licence holder name" aria-invalid={Boolean(fieldErrors.licenseHolderName)} aria-describedby="licenseHolderName-error" />
+              </FormField>
+              <FormField name="licenseDocumentUrl" error={fieldErrors.licenseDocumentUrl}>
+                <input name="licenseDocumentUrl" type="file" accept="image/*,application/pdf,.pdf" aria-invalid={Boolean(fieldErrors.licenseDocumentUrl)} aria-describedby="licenseDocumentUrl-error licenseDocumentUrl-help" />
+                <span className="form-helper" id="licenseDocumentUrl-help">Upload driving licence photo or PDF.</span>
+              </FormField>
+              <FormField name="rcNumber" error={fieldErrors.rcNumber}>
+                <input name="rcNumber" placeholder="RC number (optional)" aria-invalid={Boolean(fieldErrors.rcNumber)} aria-describedby="rcNumber-error" />
+              </FormField>
+              <FormField name="rcDocumentUrl" error={fieldErrors.rcDocumentUrl}>
+                <input name="rcDocumentUrl" type="file" accept="image/*,application/pdf,.pdf" aria-invalid={Boolean(fieldErrors.rcDocumentUrl)} aria-describedby="rcDocumentUrl-error rcDocumentUrl-help" />
+                <span className="form-helper" id="rcDocumentUrl-help">Upload RC document (optional).</span>
+              </FormField>
+              <FormField name="pricePerKm" error={fieldErrors.pricePerKm}>
+                <input name="pricePerKm" type="number" min="0.01" step="0.01" placeholder="Your rate per km (INR)" aria-invalid={Boolean(fieldErrors.pricePerKm)} aria-describedby="pricePerKm-error pricePerKm-help" />
+                <span className="form-helper" id="pricePerKm-help">Admin sets final price. Your rate helps calculate payout.</span>
+              </FormField>
+            </section>
+          </div>
+          <button className="primary-button" type="submit" disabled={submittingPackage}>
+            {submittingPackage ? "Submitting..." : "Submit package"}
+          </button>
+        </form>
+      </div>
+    );
+  }
+
+  function renderManagePanel() {
+    return (
+      <div className="ops-panel provider-panel">
+        <div className="panel-title-row">
+          <div>
+            <h3>Manage package details</h3>
+            <p className="muted">{packages.length} package{packages.length === 1 ? "" : "s"} submitted.</p>
+          </div>
+        </div>
+        {packages.length === 0 && <p className="muted">No packages submitted yet.</p>}
+        <div className="proposal-grid">
+          {packages.map((pack) => {
+            const selectedDestination = selectedManageDestinations[pack.id] ?? pack.destination;
+            const selectedPickupMode = selectedManagePickupModes[pack.id] ?? pack.pickupAvailabilityMode ?? "ALWAYS";
+            return (
+              <form className="content-editor-card" key={pack.id} onSubmit={(event) => updatePackageDetails(event, pack.id)}>
+                <strong>{pack.title}</strong>
+                <small>{pack.destination} · {(pack.availabilityStatus ?? "PENDING").replace(/_/g, " ")}</small>
+                <small>Payout: {pack.providerPayout ? `INR ${pack.providerPayout}` : "Admin price pending"}{pack.pricePerKm ? ` (${pack.pricePerKm}/km)` : ""}</small>
+                <div className="provider-form-sections manage-package-sections">
+                  <section className="provider-form-section">
+                    <div className="section-kicker"><MapPin size={17} />Package data</div>
+                    <select
+                      name="destination"
+                      value={selectedDestination}
+                      onChange={(event) => setSelectedManageDestinations((current) => ({ ...current, [pack.id]: event.target.value }))}
+                    >
+                      {destinationOptions.map((destination) => <option key={destination} value={destination}>{destination}</option>)}
+                      <option value="__custom">Destination not listed</option>
+                    </select>
+                    {selectedDestination === "__custom" && <input name="customDestination" placeholder="Type destination if not listed" />}
+                    <textarea name="localPlaces" defaultValue={pack.localPlaces ?? pack.summary} placeholder="Local places or subplaces" />
+                    <div className="pickup-schedule-box">
+                      <select
+                        name="pickupAvailabilityMode"
+                        value={selectedPickupMode}
+                        onChange={(event) => setSelectedManagePickupModes((current) => ({ ...current, [pack.id]: event.target.value }))}
+                      >
+                        <option value="ALWAYS">Available 24/7</option>
+                        <option value="SPECIFIC">Specific pickup hours</option>
+                      </select>
+                      {selectedPickupMode === "SPECIFIC" && (
+                        <div className="pickup-time-window">
+                          <input name="pickupStartTime" type="time" defaultValue={pack.pickupStartTime ?? ""} aria-label={`${pack.title} pickup start time`} />
+                          <input name="pickupEndTime" type="time" defaultValue={pack.pickupEndTime ?? ""} aria-label={`${pack.title} pickup end time`} />
+                        </div>
+                      )}
+                    </div>
+                  </section>
+                  <section className="provider-form-section">
+                    <div className="section-kicker"><CarFront size={17} />Car data</div>
+                    <select name="carType" defaultValue={pack.carType ?? "FOUR_SEATER"}>
+                      <option value="FOUR_SEATER">4 seater</option>
+                      <option value="SIX_SEATER">6 seater</option>
+                    </select>
+                    <input name="carNumber" defaultValue={pack.carNumber ?? ""} placeholder="Car number" />
+                    <input name="carModel" defaultValue={pack.carModel ?? ""} placeholder="Car name or model" />
+                    <input name="existingCarPhotoUrl" type="hidden" value={pack.carPhotoUrl ?? ""} />
+                    <input name="carPhotoUrl" type="file" accept="image/*" aria-label={`${pack.title} car photo`} />
+                    <span className="form-helper">{pack.carPhotoUrl ? "Car photo uploaded. Choose to replace." : "Upload clear car photo."}</span>
+                  </section>
+                  <section className="provider-form-section">
+                    <div className="section-kicker"><IdCard size={17} />Driver &amp; RC details</div>
+                    <input name="licenseNumber" defaultValue={pack.licenseNumber ?? ""} placeholder="Driving licence number" />
+                    <input name="licenseHolderName" defaultValue={pack.licenseHolderName ?? ""} placeholder="Licence holder name" />
+                    <input name="existingLicenseDocumentUrl" type="hidden" value={pack.licenseDocumentUrl ?? ""} />
+                    <input name="licenseDocumentUrl" type="file" accept="image/*,application/pdf,.pdf" aria-label={`${pack.title} licence document`} />
+                    <span className="form-helper">{pack.licenseDocumentUrl ? "Licence uploaded. Choose to replace." : "Upload driving licence photo or PDF."}</span>
+                    <input name="rcNumber" defaultValue={pack.rcNumber ?? ""} placeholder="RC number (optional)" />
+                    <input name="existingRcDocumentUrl" type="hidden" value={pack.rcDocumentUrl ?? ""} />
+                    <input name="rcDocumentUrl" type="file" accept="image/*,application/pdf,.pdf" aria-label={`${pack.title} RC document`} />
+                    <span className="form-helper">{pack.rcDocumentUrl ? "RC uploaded. Choose to replace." : "Upload RC document (optional)."}</span>
+                    <input name="pricePerKm" type="number" min="0.01" step="0.01" defaultValue={pack.pricePerKm ?? ""} placeholder="Your rate per km (INR)" aria-label={`${pack.title} rate per km`} />
+                  </section>
+                </div>
+                {pack.reviewNotes && <small className="review-note">{pack.reviewNotes}</small>}
+                {pack.repostedFromId && <small className="repost-badge">Reposted from a completed package</small>}
+                {pack.availabilityStatus === "BOOKED" ? (
+                  <div className="repost-action-block">
+                    <p className="trust-note">This package has been successfully completed. You can repost it to make it available again.</p>
+                    <button className="primary-button" type="button" onClick={() => void repostPackage(pack.id)}>Repost package</button>
+                  </div>
+                ) : (
+                  <button className="primary-button" type="submit">Update package</button>
+                )}
+              </form>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="page provider-workspace-page">
+      <aside className={`provider-sidebar ${sidebarOpen ? "open" : ""}`} aria-label="Provider sections">
+        <div className="provider-sidebar-head">
+          <div>
+            <strong>Provider portal</strong>
+            <small>Operations menu</small>
+          </div>
+          <button className="icon-button provider-sidebar-close" type="button" onClick={() => setSidebarOpen(false)} aria-label="Close menu">
+            <X size={18} />
+          </button>
+        </div>
+        <nav className="provider-nav">
+          {providerSections.map((section) => (
+            <button
+              key={section.id}
+              className={section.id === activeSection ? "active" : ""}
+              type="button"
+              onClick={() => { setActiveSection(section.id); setSidebarOpen(false); }}
+              aria-current={section.id === activeSection ? "page" : undefined}
+            >
+              <span className="provider-nav-icon">{section.icon}</span>
+              <span><strong>{section.label}</strong></span>
+              <b>{section.count}</b>
+            </button>
+          ))}
+        </nav>
+      </aside>
+
+      {sidebarOpen && <button className="provider-sidebar-scrim" type="button" aria-label="Close menu" onClick={() => setSidebarOpen(false)} />}
+
+      <main className="provider-main">
+        <div className="provider-mobilebar">
+          <button className="icon-button" type="button" onClick={() => setSidebarOpen(true)} aria-label="Open provider menu">
+            <Menu size={19} />
+          </button>
+          <strong>{currentProviderSection.label}</strong>
+        </div>
+
+        <div className="provider-workspace-heading">
+          <div>
+            <span className="eyebrow">PROVIDER</span>
+            <h1>{currentProviderSection.label}</h1>
+            <p className="muted">{currentProviderSection.description}</p>
+          </div>
+          <Link className="primary-button" to="/packages">Explore packages<ArrowRight size={17} /></Link>
+        </div>
+
+        {message && <div className="notice-panel provider-message">{message}</div>}
+
+        <div className="provider-section-view">
+          {activeSection === "submit" ? renderSubmitPanel() : activeSection === "manage" ? renderManagePanel() : renderTicketsPanel()}
+        </div>
+      </main>
+    </div>
   );
 }
 
@@ -976,21 +2258,6 @@ function Metric({ icon, label, value, tone }: { icon: ReactNode; label: string; 
   );
 }
 
-function RequestRows({ requests }: { requests: ApiRequest[] }) {
-  const statuses: RequestStatus[] = requests.length ? requests.map((request) => request.status) : ["REQUEST_SUBMITTED", "UNDER_REVIEW", "APPROVED_BY_COMPANY", "FORWARDED_TO_PROVIDER"];
-  return (
-    <div className="ops-panel wide">
-      <h3>Request timeline</h3>
-      {statuses.map((status, index) => (
-        <div className="timeline-row" key={`${status}-${index}`}>
-          <span>{index + 1}</span>
-          <strong>{status.replace(/_/g, " ")}</strong>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 export function StaticPage({ slug, fallbackTitle }: { slug: string; fallbackTitle: string }) {
   const [page, setPage] = useState<ContentPage | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1008,11 +2275,11 @@ export function StaticPage({ slug, fallbackTitle }: { slug: string; fallbackTitl
         <span className="eyebrow"><ShieldCheck size={17} />CarHub policy</span>
         <h1>{page?.title ?? fallbackTitle}</h1>
         {loading ? (
-          <p>Loading company-controlled content...</p>
+          <p>Loading published content...</p>
         ) : (
           <>
             <p className="lead-copy">{page?.summary ?? "This content is managed by CarHub admin."}</p>
-            <p>{page?.body ?? "CarHub prioritizes privacy, transparent request handling, company-controlled provider sharing, and accountable support."}</p>
+            <p>{page?.body ?? "CarHub prioritizes fast bookings, verified provider visibility, clear ticketing, and accountable support."}</p>
             {(page?.contactEmail || page?.contactPhone || page?.supportHours) && (
               <div className="contact-lines">
                 {page.contactEmail && <span>Email: {page.contactEmail}</span>}

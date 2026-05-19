@@ -40,11 +40,15 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/packages/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/content/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/location/**").permitAll()
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers("/api/v1/admin/**").hasAnyRole("ADMIN", "SUB_ADMIN")
                         .requestMatchers("/api/v1/provider/**").hasRole("PROVIDER")
                         .requestMatchers("/api/v1/support/**").hasAnyRole("SUPPORT", "ADMIN", "SUB_ADMIN")
                         .requestMatchers("/api/v1/customer/**").hasRole("CUSTOMER")
+                        .requestMatchers("/api/v1/bookings/**").hasRole("CUSTOMER")
+                        .requestMatchers("/api/v1/payments/**").hasRole("CUSTOMER")
+                        .requestMatchers("/api/v1/tickets/**").hasRole("CUSTOMER")
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(bearerTokenFilter, UsernamePasswordAuthenticationFilter.class);
@@ -59,7 +63,7 @@ public class SecurityConfig {
     @Bean
     CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of(allowedOrigins.split(",")));
+        config.setAllowedOriginPatterns(List.of(allowedOrigins.split(",")));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Trace-Id"));
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

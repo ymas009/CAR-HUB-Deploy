@@ -5,12 +5,15 @@ import com.carhub.packagecatalog.dto.TravelPackageResponse;
 import com.carhub.security.CurrentUser;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/provider/packages")
@@ -31,5 +34,15 @@ public class ProviderPackageController {
     @PostMapping
     TravelPackageResponse submit(@Valid @RequestBody ProviderPackageSubmissionRequest request) {
         return packageCatalogService.submitProviderPackage(currentUser.require().id(), request);
+    }
+
+    @PutMapping("/{packageId}")
+    TravelPackageResponse update(@PathVariable UUID packageId, @Valid @RequestBody ProviderPackageSubmissionRequest request) {
+        return packageCatalogService.updateProviderPackage(currentUser.require().id(), packageId, request);
+    }
+
+    @PostMapping("/{packageId}/repost")
+    TravelPackageResponse repost(@PathVariable UUID packageId) {
+        return packageCatalogService.repostPackage(currentUser.require().id(), packageId);
     }
 }

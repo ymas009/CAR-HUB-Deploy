@@ -56,8 +56,8 @@ Services:
 
 - Frontend: `http://localhost:8088`
 - Admin frontend: `http://localhost:8089`
-- Backend: `http://localhost:8080`
-- Health: `http://localhost:8080/actuator/health`
+- Backend: `http://localhost:8081`
+- Health: `http://localhost:8081/actuator/health`
 
 Local in-memory backend preview:
 

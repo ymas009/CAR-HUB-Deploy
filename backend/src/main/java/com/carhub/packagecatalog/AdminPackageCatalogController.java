@@ -1,12 +1,14 @@
 package com.carhub.packagecatalog;
 
 import com.carhub.packagecatalog.dto.AdminPackageReviewRequest;
+import com.carhub.packagecatalog.dto.PackageAvailabilityUpdateRequest;
 import com.carhub.packagecatalog.dto.TravelPackageResponse;
 import com.carhub.security.CurrentUser;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -30,8 +32,18 @@ public class AdminPackageCatalogController {
         return packageCatalogService.pendingAdminPackages();
     }
 
+    @GetMapping
+    List<TravelPackageResponse> all() {
+        return packageCatalogService.allAdminPackages();
+    }
+
     @PostMapping("/{packageId}/review")
     TravelPackageResponse review(@PathVariable UUID packageId, @Valid @RequestBody AdminPackageReviewRequest request) {
         return packageCatalogService.reviewProviderPackage(currentUser.require().id(), packageId, request);
+    }
+
+    @PutMapping("/{packageId}")
+    TravelPackageResponse update(@PathVariable UUID packageId, @Valid @RequestBody PackageAvailabilityUpdateRequest request) {
+        return packageCatalogService.updateAdminPackage(currentUser.require().id(), packageId, request);
     }
 }

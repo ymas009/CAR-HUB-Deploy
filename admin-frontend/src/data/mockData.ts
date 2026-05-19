@@ -2,47 +2,59 @@ import { PackageCard } from "../types";
 
 export const packages: PackageCard[] = [
   {
-    id: "varanasi-spiritual-circuit",
-    title: "Varanasi Spiritual Circuit",
-    destination: "Varanasi, Sarnath, Ganga Aarti",
-    category: "Spiritual",
-    duration: "4 days",
-    price: "From INR 18,500",
+    id: "lonavala-khandala-hills",
+    title: "Lonavala & Khandala Hills",
+    destination: "Lonavala, Khandala, Karla Caves",
+    category: "Hill Station",
+    duration: "2 days",
+    price: "From INR 8,500",
     image:
-      "https://images.unsplash.com/photo-1561361513-2d000a50f0dc?auto=format&fit=crop&w=1200&q=80",
-    trust: "Company reviewed request flow",
-    accent: "Sacred sunrise experience"
+      "https://images.unsplash.com/photo-1596484552834-6a58f850e0a1?auto=format&fit=crop&w=1200&q=80",
+    trust: "Direct booking with verified providers",
+    accent: "Western Ghats weekend escape from Pune"
   },
   {
-    id: "kerala-backwater-retreat",
-    title: "Kerala Backwater Retreat",
-    destination: "Alleppey, Munnar, Kochi",
-    category: "Holiday",
-    duration: "6 days",
-    price: "From INR 42,000",
+    id: "mahabaleshwar-panchgani-retreat",
+    title: "Mahabaleshwar & Panchgani Retreat",
+    destination: "Mahabaleshwar, Panchgani, Venna Lake",
+    category: "Scenic Town",
+    duration: "3 days",
+    price: "From INR 14,500",
     image:
-      "https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?auto=format&fit=crop&w=1200&q=80",
-    trust: "Verified local execution partners",
-    accent: "Calm family-friendly escape"
+      "https://images.unsplash.com/photo-1506744626753-143d46059b02?auto=format&fit=crop&w=1200&q=80",
+    trust: "Verified Maharashtra route planning",
+    accent: "Strawberry country hill retreat"
   },
   {
-    id: "himachal-mountain-week",
-    title: "Himachal Mountain Week",
-    destination: "Shimla, Manali, Solang",
+    id: "alibaug-coastal-break",
+    title: "Alibaug Coastal Break",
+    destination: "Alibaug, Kulaba Fort, Mandwa Coast",
+    category: "Beach",
+    duration: "2 days",
+    price: "From INR 11,900",
+    image:
+      "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80",
+    trust: "Coastal packages with verified providers",
+    accent: "Beachside getaway from Pune"
+  },
+  {
+    id: "kolad-adventure-route",
+    title: "Kolad Adventure Route",
+    destination: "Kolad, Kundalika River, Rafting Base",
     category: "Adventure",
-    duration: "7 days",
-    price: "From INR 36,750",
+    duration: "2 days",
+    price: "From INR 10,750",
     image:
-      "https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?auto=format&fit=crop&w=1200&q=80",
-    trust: "Support visibility during travel",
-    accent: "Fresh air and scenic drives"
+      "https://images.unsplash.com/photo-1533596711904-45300eb8cc64?auto=format&fit=crop&w=1200&q=80",
+    trust: "Adventure trips tracked from booking to provider handoff",
+    accent: "Rafting and monsoon valley energy"
   }
 ];
 
 export const workflow = [
-  "Request submitted",
-  "Company review",
-  "Controlled provider sharing",
-  "Execution tracking",
-  "Support and feedback"
+  "Choose package",
+  "Pay securely",
+  "Ticket generated",
+  "Provider notified",
+  "Trip tracked"
 ];

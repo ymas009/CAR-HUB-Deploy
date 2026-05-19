@@ -1,0 +1,22 @@
+<svg width="900" height="560" viewBox="0 0 900 560" xmlns="http://www.w3.org/2000/svg">
+<defs>
+ <linearGradient id="sky" x1="0" y1="0" x2="0" y2="560">
+  <stop stop-color="#C4E7D6"/>
+  <stop offset=".60" stop-color="#FFF2D5"/>
+  <stop offset="1" stop-color="#9E6D48"/>
+ </linearGradient>
+ <filter id="soft"><feGaussianBlur stdDeviation="18"/></filter>
+</defs>
+<rect width="900" height="560" fill="url(#sky)"/>
+<circle cx="745" cy="110" r="72" fill="#FFF4BF" opacity=".78" filter="url(#soft)"/>
+
+<path d="M115 380 C260 300 395 390 530 320 C660 254 775 300 900 245 V560 H0Z" fill="#215F48" opacity=".34"/>
+<path d="M88 432 C285 385 485 416 735 368" stroke="#4B3728" stroke-width="15" stroke-linecap="round"/>
+<rect x="290" y="333" width="230" height="70" rx="14" fill="#C34632" opacity=".92"/>
+<circle cx="338" cy="410" r="20" fill="#2B2B2B"/>
+<circle cx="468" cy="410" r="20" fill="#2B2B2B"/>
+<rect x="320" y="350" width="45" height="30" rx="5" fill="#F6E7C9"/>
+<rect x="385" y="350" width="45" height="30" rx="5" fill="#F6E7C9"/>
+
+<text x="58" y="116" font-family="Arial, sans-serif" font-size="76">🚂</text>
+</svg>

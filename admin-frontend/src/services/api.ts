@@ -34,7 +34,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 }
 
 export const api = {
-  baseUrl: import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080/api/v1",
+  baseUrl: import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8081/api/v1",
   get<T>(path: string): Promise<T> {
     return request<T>("GET", path);
   },

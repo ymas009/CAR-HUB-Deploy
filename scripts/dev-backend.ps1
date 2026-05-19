@@ -1,7 +1,7 @@
 $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$javaHome = "C:\Program Files\Eclipse Adoptium\jdk-21.0.11.10-hotspot"
+$javaHome = "C:\Program Files\Java\jdk-21.0.10"
 $maven = Join-Path $repoRoot ".tools\apache-maven-3.9.15\bin\mvn.cmd"
 
 $env:JAVA_HOME = $javaHome

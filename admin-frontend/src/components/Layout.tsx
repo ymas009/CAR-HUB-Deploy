@@ -22,21 +22,21 @@ export function Layout() {
     <div className="app-shell">
       <header className="site-header">
         <NavLink to="/" className="brand" aria-label="CarHub home">
-          <span className="brand-mark">C</span>
-          <span className="brand-text">Car<span>Hub</span></span>
-          <span className="admin-brand-badge">Admin</span>
+          <img className="brand-logo" src="/carhub-logo.png" alt="CarHub" />
         </NavLink>
-        <nav className="desktop-nav" aria-label="Primary navigation">
-          {navItems.map((item) => (
-            <NavLink key={item.href} to={item.href}>
-              {item.label}
-            </NavLink>
-          ))}
-        </nav>
+        {user && (
+          <nav className="desktop-nav" aria-label="Primary navigation">
+            {navItems.map((item) => (
+              <NavLink key={item.href} to={item.href}>
+                {item.label}
+              </NavLink>
+            ))}
+          </nav>
+        )}
         <div className="header-actions">
           <div className="trust-pill">
             <ShieldCheck size={16} />
-            Company control center
+            Admin control center
           </div>
           {user ? (
             <>
@@ -48,11 +48,7 @@ export function Layout() {
                 Logout
               </button>
             </>
-          ) : (
-            <button className="primary-button" onClick={() => navigate("/login")}>
-              Login
-            </button>
-          )}
+          ) : null}
           <button className="icon-button menu-button" aria-label={menuOpen ? "Close menu" : "Open menu"} aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>
             {menuOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
@@ -60,11 +56,11 @@ export function Layout() {
       </header>
       <div className={`mobile-nav-panel ${menuOpen ? "open" : ""}`}>
         <nav aria-label="Mobile navigation">
-          {navItems.map((item) => (
-            <NavLink key={item.href} to={item.href} onClick={() => setMenuOpen(false)}>
-              {item.label}
-            </NavLink>
-          ))}
+          {user && navItems.map((item) => (
+              <NavLink key={item.href} to={item.href} onClick={() => setMenuOpen(false)}>
+                {item.label}
+              </NavLink>
+            ))}
           {user && (
             <NavLink to={dashboardPath} onClick={() => setMenuOpen(false)}>
               My workspace

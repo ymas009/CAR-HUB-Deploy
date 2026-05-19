@@ -21,8 +21,12 @@ export type RequestStatus =
 export interface PackageCard {
   id: string;
   place: string;
+  destination?: string;
   distance_from_pune: string;
   travel_time: string;
+  durationDays?: number;
+  startingPrice?: number;
+  currency?: string;
   highlights: string;
   category: string;
   image: string;
@@ -48,13 +52,36 @@ export interface ApiPackage {
   summary: string;
   description: string;
   startingPrice: number;
+  distanceKm?: number;
+  pricePerKm?: number;
+  providerPayout?: number;
   currency: string;
   durationDays: number;
   imageUrl: string;
+  videoUrl?: string;
+  carPhotoUrl?: string;
+  localPlaces?: string;
+  carType?: string;
+  licenseNumber?: string;
+  licenseHolderName?: string;
+  licenseDetails?: string;
+  licenseDocumentUrl?: string;
+  carNumber?: string;
+  carModel?: string;
+  carColor?: string;
+  seatsAvailable?: number;
+  providerNotes?: string;
+  pickupAvailabilityMode?: "ALWAYS" | "SPECIFIC";
+  pickupStartTime?: string;
+  pickupEndTime?: string;
   featured: boolean;
   availabilityStatus?: string;
   providerBusinessName?: string;
   reviewNotes?: string;
+  rcNumber?: string;
+  rcDocumentUrl?: string;
+  repostedFromId?: string;
+  providerCompletedCount?: number;
 }
 
 export interface ApiRequest {
@@ -84,6 +111,68 @@ export interface SupportTicket {
   status: string;
   subject: string;
   slaDueAt?: string;
+  createdAt: string;
+}
+
+export type CarType = "FOUR_SEATER" | "SIX_SEATER";
+export type TicketStatus = "BOOKED" | "ASSIGNED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
+
+export interface BookingTicket {
+  id: string;
+  ticketNumber: string;
+  packageId: string;
+  packageName: string;
+  destination: string;
+  route: string;
+  travellersCount: number;
+  carType: CarType;
+  carDetails: string;
+  carPhotoUrl?: string;
+  carNumber?: string;
+  carModel?: string;
+  carColor?: string;
+  specialRequests?: string;
+  pickupLocation?: string;
+  pickupDate?: string;
+  pickupTime?: string;
+  paymentReference?: string;
+  status: TicketStatus;
+  providerBusinessName: string;
+  providerContactNumber: string;
+  createdAt: string;
+}
+
+export interface PaymentOrder {
+  keyId: string;
+  orderId: string;
+  amount: number;
+  currency: string;
+  packageName: string;
+}
+
+export interface PaymentVerification {
+  verified: boolean;
+  paymentReference: string;
+}
+
+export interface ProviderTicket {
+  id: string;
+  ticketNumber: string;
+  packageName: string;
+  destination: string;
+  route: string;
+  travellersCount: number;
+  carType: CarType;
+  carPhotoUrl?: string;
+  carNumber?: string;
+  carModel?: string;
+  carColor?: string;
+  specialRequests?: string;
+  pickupLocation?: string;
+  pickupDate?: string;
+  pickupTime?: string;
+  maskedCustomerRef: string;
+  status: TicketStatus;
   createdAt: string;
 }
 

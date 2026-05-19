@@ -20,7 +20,7 @@ public class CustomerProfileService {
 
     public CustomerProfileResponse get(UUID userId) {
         return customerProfileRepository.findByUserId(userId).map(this::toResponse)
-                .orElseGet(() -> new CustomerProfileResponse(null, null, null, null, null, null, false));
+                .orElseGet(() -> new CustomerProfileResponse(null, null, null, null, null, null, null, null, null, null, false));
     }
 
     @Transactional
@@ -38,16 +38,21 @@ public class CustomerProfileService {
         profile.setCity(request.city());
         profile.setState(request.state());
         profile.setCountry(request.country());
+        profile.setAddress(request.address());
+        profile.setPinCode(request.pinCode());
+        profile.setLatitude(request.latitude());
+        profile.setLongitude(request.longitude());
         profile.setPreferredTravelType(request.preferredTravelType());
         profile.setEmergencyContactName(request.emergencyContactName());
         profile.setEmergencyContactMobile(request.emergencyContactMobile());
-        profile.setProfileCompleted(request.city() != null && request.country() != null && request.emergencyContactMobile() != null);
+        profile.setProfileCompleted(request.address() != null && request.emergencyContactMobile() != null);
         profile.touch();
         return toResponse(customerProfileRepository.save(profile));
     }
 
     private CustomerProfileResponse toResponse(CustomerProfile profile) {
         return new CustomerProfileResponse(profile.getCity(), profile.getState(), profile.getCountry(),
+                profile.getAddress(), profile.getPinCode(), profile.getLatitude(), profile.getLongitude(),
                 profile.getPreferredTravelType(), profile.getEmergencyContactName(),
                 profile.getEmergencyContactMobile(), profile.isProfileCompleted());
     }

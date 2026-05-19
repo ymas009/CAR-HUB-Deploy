@@ -17,6 +17,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.math.BigDecimal;
+import java.util.Optional;
 import java.util.Set;
 
 @Configuration
@@ -39,15 +40,23 @@ public class DataSeeder {
 
     private AppUser ensureUser(AppUserRepository users, PasswordEncoder encoder, String email, String mobile,
                                String name, String password, RoleCode role) {
-        return users.findByEmailIgnoreCase(email).orElseGet(() -> {
-            AppUser user = new AppUser();
-            user.setEmail(email);
-            user.setMobile(mobile);
-            user.setFullName(name);
-            user.setPasswordHash(encoder.encode(password));
-            user.setRoles(Set.of(role));
-            return users.save(user);
-        });
+        AppUser user = users.findByEmailIgnoreCase(email)
+                .or(() -> users.findByMobile(mobile))
+                .orElseGet(() -> {
+                    AppUser newUser = new AppUser();
+                    newUser.setEmail(email);
+                    newUser.setMobile(mobile);
+                    newUser.setFullName(name);
+                    newUser.setPasswordHash(encoder.encode(password));
+                    return newUser;
+                });
+
+        if (user.getRoles().contains(role)) {
+            return user;
+        }
+
+        user.getRoles().add(role);
+        return users.save(user);
     }
 
     private void ensureCustomerProfile(CustomerProfileRepository profiles, AppUser customer) {
@@ -81,51 +90,67 @@ public class DataSeeder {
     }
 
     private void ensurePackages(TravelPackageRepository packages) {
-        ensurePackage(packages, "varanasi-spiritual-circuit", "Varanasi Spiritual Circuit", "Varanasi, Sarnath, Ganga Aarti", "Spiritual", 4, new BigDecimal("18500"), true);
-        ensurePackage(packages, "kerala-backwater-retreat", "Kerala Backwater Retreat", "Alleppey, Munnar, Kochi", "Holiday", 6, new BigDecimal("42000"), true);
-        ensurePackage(packages, "himachal-mountain-week", "Himachal Mountain Week", "Shimla, Manali, Solang", "Adventure", 7, new BigDecimal("36750"), false);
-        ensurePackage(packages, "goa-coastal-family-break", "Goa Coastal Family Break", "North Goa, South Goa, Panaji", "Family", 5, new BigDecimal("28500"), true);
-        ensurePackage(packages, "jaipur-udaipur-heritage-route", "Jaipur Udaipur Heritage Route", "Jaipur, Pushkar, Udaipur", "Heritage", 6, new BigDecimal("33200"), false);
-        ensurePackage(packages, "rishikesh-haridwar-wellness-trip", "Rishikesh Haridwar Wellness Trip", "Rishikesh, Haridwar, Ganga Ghats", "Wellness", 4, new BigDecimal("21800"), false);
+        ensurePackage(packages, "varanasi-spiritual-circuit", "Shirdi Spiritual Route", "Shirdi, Sai Baba Temple, Kopargaon", "Spiritual", 2, new BigDecimal("9200"), true);
+        ensurePackage(packages, "kerala-backwater-retreat", "Mahabaleshwar & Panchgani Retreat", "Mahabaleshwar, Panchgani, Venna Lake", "Scenic Town", 3, new BigDecimal("14500"), true);
+        ensurePackage(packages, "himachal-mountain-week", "Lonavala & Khandala Hills", "Lonavala, Khandala, Karla Caves", "Hill Station", 2, new BigDecimal("8500"), true);
+        ensurePackage(packages, "goa-coastal-family-break", "Alibaug Coastal Break", "Alibaug, Kulaba Fort, Mandwa Coast", "Beach", 2, new BigDecimal("11900"), true);
+        ensurePackage(packages, "jaipur-udaipur-heritage-route", "Nashik Vineyard & Heritage", "Nashik, Sula Vineyards, Trimbakeshwar", "Heritage", 3, new BigDecimal("13200"), false);
+        ensurePackage(packages, "rishikesh-haridwar-wellness-trip", "Kolad Adventure Route", "Kolad, Kundalika River, Rafting Base", "Adventure", 2, new BigDecimal("10750"), false);
     }
 
     private void ensurePackage(TravelPackageRepository packages, String slug, String title, String destination,
                                String category, int days, BigDecimal price, boolean featured) {
-        if (packages.existsBySlug(slug)) {
+        Optional<TravelPackage> existing = packages.findBySlug(slug);
+        TravelPackage pack = existing.orElseGet(TravelPackage::new);
+        if (existing.isPresent() && "BOOKED".equals(pack.getAvailabilityStatus())) {
+            pack.setFeatured(false);
+            packages.save(pack);
             return;
         }
-        TravelPackage pack = new TravelPackage();
         pack.setSlug(slug);
         pack.setTitle(title);
         pack.setDestination(destination);
         pack.setCategory(category);
-        pack.setSummary("Company-reviewed curated travel package with support visibility.");
-        pack.setDescription("A curated CarHub package where requests are reviewed by the company before provider assignment.");
+        pack.setSummary("Direct booking Maharashtra package from Pune with verified provider support.");
+        pack.setDescription("A curated CarHub Maharashtra route from Pune with secure payment, ticket generation, and direct provider handoff.");
         pack.setDurationDays(days);
         pack.setStartingPrice(price);
         pack.setCurrency("INR");
         pack.setImageUrl("https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80");
-        pack.setFeatured(featured);
-        pack.setAvailabilityStatus("AVAILABLE");
+        pack.setVideoUrl(
+                "varanasi-spiritual-circuit".equals(slug)
+                        ? "/Shirdi%20spritual.mp4"
+                        : "goa-coastal-family-break".equals(slug)
+                        ? "/alibag.mp4"
+                        : "kerala-backwater-retreat".equals(slug)
+                                ? "/mahabaleshwar.mp4"
+                        : "himachal-mountain-week".equals(slug)
+                                ? "/lonavala-video.mp4"
+                : null
+        );
+        if (existing.isEmpty() || pack.getAvailabilityStatus() == null || pack.getAvailabilityStatus().isBlank()) {
+            pack.setAvailabilityStatus("AVAILABLE");
+        }
+        pack.setFeatured("AVAILABLE".equals(pack.getAvailabilityStatus()) && featured);
         packages.save(pack);
     }
 
     private void ensureContentPages(ContentPageRepository pages) {
         ensureContentPage(pages, "about", "About CarHub",
-                "Company-controlled travel discovery with accountable support.",
-                "CarHub helps customers discover curated travel packages while the company remains the central authority for approvals, provider sharing, support, and customer communication.",
+                "Direct booking travel discovery with accountable support.",
+                "CarHub helps customers discover curated travel packages, pay securely, receive a ticket instantly, and connect directly with verified providers while admin continues to track operations.",
                 null, null, null);
         ensureContentPage(pages, "contact", "Contact Us",
-                "Reach the CarHub team for travel requests, support, and provider coordination.",
-                "For package assistance, account help, or travel support, contact CarHub operations. Provider communication remains company-controlled for customer safety and service quality.",
+                "Reach the CarHub team for booking help, support, and platform assistance.",
+                "For package assistance, account help, or travel support, contact CarHub operations. Providers manage trip execution directly after a ticket is generated, and admin can still track the booking.",
                 "support@carhub.local", "+91 90000 00000", "Daily, 9:00 AM - 9:00 PM IST");
         ensureContentPage(pages, "privacy", "Privacy Policy",
-                "CarHub protects customer data through controlled provider visibility.",
-                "Customer personal data and request details are shared with providers only after company review, approval, masking, and assignment. Access is scoped, time-bound, revocable, and audited.",
+                "CarHub protects customer data while enabling direct booking execution.",
+                "Customer data is shared only as needed to complete a booked trip. Providers receive operational trip details and a masked customer reference, while admin retains the full audit trail and booking record.",
                 null, null, null);
         ensureContentPage(pages, "terms", "Terms and Conditions",
-                "Use CarHub through the company-approved request and support workflow.",
-                "Customers submit requests to CarHub for review. Providers are execution partners and do not own the customer relationship. Company decisions, verification, support, and operational policies govern platform use.",
+                "Use CarHub through the booking, payment, and ticket workflow.",
+                "Customers can book available packages, complete payment, and receive a ticket. Providers manage approved package inventory and trip execution, while CarHub admin tracks bookings, package availability, support, and operational policy.",
                 null, null, null);
         ensureContentPage(pages, "cancellation-refund", "Cancellation and Refund Policy",
                 "Cancellations, reschedules, and refunds are handled by CarHub operations.",

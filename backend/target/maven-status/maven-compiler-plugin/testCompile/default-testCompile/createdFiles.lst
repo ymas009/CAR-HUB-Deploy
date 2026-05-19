@@ -1,2 +1,7 @@
+com\carhub\packagecatalog\PackageCatalogServiceTest.class
 com\carhub\request\PackageRequestServiceTest.class
+com\carhub\support\SupportTicketServiceTest.class
+com\carhub\booking\BookingServiceTest.class
+com\carhub\security\TokenServiceTest.class
+com\carhub\feedback\FeedbackServiceTest.class
 com\carhub\audit\AuditServiceTest.class

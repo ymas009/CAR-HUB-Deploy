@@ -1,4 +1,4 @@
-import { Menu, ShieldCheck, UserRound, X } from "lucide-react";
+import { Menu, UserRound, X } from "lucide-react";
 import { useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../state/AuthContext";
@@ -10,22 +10,28 @@ const navItems = [
   { href: "/contact", label: "Contact" }
 ];
 
+const providerAppUrl = (import.meta.env.VITE_PROVIDER_APP_URL ?? "http://localhost:5175").replace(/\/$/, "");
+
+function providerPortalPath(path: string) {
+  return `${providerAppUrl}${path}`;
+}
+
 export function Layout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [authMenuOpen, setAuthMenuOpen] = useState(false);
 
   const dashboardPath =
     user?.role === "PROVIDER"
       ? "/provider"
-      : "/customer/requests";
+      : "/customer";
 
   return (
     <div className="app-shell">
       <header className="site-header">
         <NavLink to="/" className="brand" aria-label="CarHub home">
-          <span className="brand-mark">C</span>
-          <span className="brand-text">Car<span>Hub</span></span>
+          <img className="brand-logo" src="/carhub-logo.png" alt="CarHub" />
         </NavLink>
         <nav className="desktop-nav" aria-label="Primary navigation">
           {navItems.map((item) => (
@@ -35,10 +41,6 @@ export function Layout() {
           ))}
         </nav>
         <div className="header-actions">
-          <div className="trust-pill">
-            <ShieldCheck size={16} />
-            Company controlled
-          </div>
           {user ? (
             <>
               <button className="ghost-button" onClick={() => navigate(dashboardPath)}>
@@ -50,9 +52,40 @@ export function Layout() {
               </button>
             </>
           ) : (
-            <button className="primary-button nav-signin-button" onClick={() => navigate("/login")}>
-              Sign in
-            </button>
+            <div className="auth-menu">
+              <button
+                className="primary-button nav-signin-button"
+                onClick={() => setAuthMenuOpen((open) => !open)}
+                aria-expanded={authMenuOpen}
+                aria-haspopup="menu"
+              >
+                Sign in
+              </button>
+              {authMenuOpen && (
+                <div className="auth-menu-panel" role="menu">
+                  <button
+                    type="button"
+                    className="auth-menu-item"
+                    onClick={() => {
+                      setAuthMenuOpen(false);
+                      navigate("/login", { state: { role: "CUSTOMER", formMode: "login" } });
+                    }}
+                  >
+                    <strong>Customer</strong>
+                  </button>
+                  <button
+                    type="button"
+                    className="auth-menu-item"
+                    onClick={() => {
+                      setAuthMenuOpen(false);
+                      window.location.assign(providerPortalPath("/login"));
+                    }}
+                  >
+                    <strong>Provider</strong>
+                  </button>
+                </div>
+              )}
+            </div>
           )}
           <button className="icon-button menu-button" aria-label={menuOpen ? "Close menu" : "Open menu"} aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>
             {menuOpen ? <X size={20} /> : <Menu size={20} />}
@@ -73,8 +106,9 @@ export function Layout() {
           )}
           {!user && (
             <>
-              <NavLink to="/login" onClick={() => setMenuOpen(false)}>Login</NavLink>
-              <NavLink to="/register" onClick={() => setMenuOpen(false)}>Register</NavLink>
+              <NavLink to="/login" onClick={() => setMenuOpen(false)}>Customer login</NavLink>
+              <NavLink to="/register" onClick={() => setMenuOpen(false)}>Customer register</NavLink>
+              <a href={providerPortalPath("/login")} onClick={() => setMenuOpen(false)}>Provider login</a>
             </>
           )}
         </nav>

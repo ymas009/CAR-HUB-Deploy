@@ -69,4 +69,5 @@ public class AppUser {
     public void setRoles(Set<RoleCode> roles) { this.roles = roles; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
+    public void touch() { this.updatedAt = Instant.now(); }
 }

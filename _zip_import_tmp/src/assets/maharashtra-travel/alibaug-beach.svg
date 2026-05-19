@@ -1,0 +1,19 @@
+<svg width="900" height="560" viewBox="0 0 900 560" xmlns="http://www.w3.org/2000/svg">
+<defs>
+ <linearGradient id="sky" x1="0" y1="0" x2="0" y2="560">
+  <stop stop-color="#8ED7F6"/>
+  <stop offset=".60" stop-color="#FFF2D5"/>
+  <stop offset="1" stop-color="#F3C985"/>
+ </linearGradient>
+ <filter id="soft"><feGaussianBlur stdDeviation="18"/></filter>
+</defs>
+<rect width="900" height="560" fill="url(#sky)"/>
+<circle cx="745" cy="110" r="72" fill="#FFF4BF" opacity=".78" filter="url(#soft)"/>
+
+<path d="M0 370 C150 335 245 380 400 350 C560 320 690 360 900 315 V560 H0Z" fill="#4EB5D7" opacity=".66"/>
+<path d="M0 440 C190 385 325 430 480 400 C630 370 745 405 900 375 V560 H0Z" fill="#F5D49B" opacity=".92"/>
+<path d="M625 270 C675 220 735 220 778 275" stroke="#3C765B" stroke-width="18" stroke-linecap="round"/>
+<path d="M715 270 V420" stroke="#6B4A2F" stroke-width="18" stroke-linecap="round"/>
+
+<text x="58" y="116" font-family="Arial, sans-serif" font-size="76">🌊</text>
+</svg>

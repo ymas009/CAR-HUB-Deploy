@@ -1,0 +1,24 @@
+<svg width="900" height="560" viewBox="0 0 900 560" xmlns="http://www.w3.org/2000/svg">
+<defs>
+ <linearGradient id="sky" x1="0" y1="0" x2="0" y2="560">
+  <stop stop-color="#D5F4C3"/>
+  <stop offset=".60" stop-color="#FFF2D5"/>
+  <stop offset="1" stop-color="#83A64A"/>
+ </linearGradient>
+ <filter id="soft"><feGaussianBlur stdDeviation="18"/></filter>
+</defs>
+<rect width="900" height="560" fill="url(#sky)"/>
+<circle cx="745" cy="110" r="72" fill="#FFF4BF" opacity=".78" filter="url(#soft)"/>
+
+<path d="M0 390 C155 315 250 375 405 310 C560 245 705 330 900 260 V560 H0Z" fill="#436F36" opacity=".37"/>
+<g stroke="#315B2C" stroke-width="7" opacity=".62">
+<path d="M75 455 C225 395 395 455 545 395 C700 335 820 380 900 350"/>
+<path d="M35 500 C210 445 390 505 560 445 C710 390 825 420 900 400"/>
+<path d="M0 540 C215 495 415 545 600 495 C725 460 835 475 900 455"/>
+</g>
+<circle cx="610" cy="340" r="18" fill="#5D3B78" opacity=".85"/>
+<circle cx="638" cy="360" r="16" fill="#5D3B78" opacity=".85"/>
+<circle cx="586" cy="365" r="16" fill="#5D3B78" opacity=".85"/>
+
+<text x="58" y="116" font-family="Arial, sans-serif" font-size="76">🍇</text>
+</svg>

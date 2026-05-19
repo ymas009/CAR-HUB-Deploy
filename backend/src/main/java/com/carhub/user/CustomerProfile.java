@@ -27,6 +27,13 @@ public class CustomerProfile {
     private String city;
     private String state;
     private String country;
+    private String address;
+
+    @Column(name = "pin_code")
+    private String pinCode;
+
+    private String latitude;
+    private String longitude;
 
     @Column(name = "preferred_travel_type")
     private String preferredTravelType;
@@ -64,6 +71,14 @@ public class CustomerProfile {
     public void setState(String state) { this.state = state; }
     public String getCountry() { return country; }
     public void setCountry(String country) { this.country = country; }
+    public String getAddress() { return address; }
+    public void setAddress(String address) { this.address = address; }
+    public String getPinCode() { return pinCode; }
+    public void setPinCode(String pinCode) { this.pinCode = pinCode; }
+    public String getLatitude() { return latitude; }
+    public void setLatitude(String latitude) { this.latitude = latitude; }
+    public String getLongitude() { return longitude; }
+    public void setLongitude(String longitude) { this.longitude = longitude; }
     public String getPreferredTravelType() { return preferredTravelType; }
     public void setPreferredTravelType(String preferredTravelType) { this.preferredTravelType = preferredTravelType; }
     public String getEmergencyContactName() { return emergencyContactName; }
@@ -78,5 +93,7 @@ public class CustomerProfile {
     public void setConsentControlledDataSharing(boolean consentControlledDataSharing) { this.consentControlledDataSharing = consentControlledDataSharing; }
     public boolean isProfileCompleted() { return profileCompleted; }
     public void setProfileCompleted(boolean profileCompleted) { this.profileCompleted = profileCompleted; }
+    public Instant getCreatedAt() { return createdAt; }
+    public Instant getUpdatedAt() { return updatedAt; }
     public void touch() { this.updatedAt = Instant.now(); }
 }

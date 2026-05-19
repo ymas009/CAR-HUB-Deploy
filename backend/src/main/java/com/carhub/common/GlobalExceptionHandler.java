@@ -16,7 +16,14 @@ import java.util.stream.Collectors;
 public class GlobalExceptionHandler {
     @ExceptionHandler(BusinessRuleException.class)
     ResponseEntity<ApiError> handleBusinessRule(BusinessRuleException exception, HttpServletRequest request) {
-        return ResponseEntity.status(HttpStatus.CONFLICT)
+        HttpStatus status = switch (exception.code()) {
+            case "FORBIDDEN" -> HttpStatus.FORBIDDEN;
+            case "PACKAGE_NOT_FOUND", "USER_NOT_FOUND", "PROVIDER_PROFILE_NOT_FOUND" -> HttpStatus.NOT_FOUND;
+            case "PACKAGE_NOT_COMPLETED", "INVALID_PACKAGE_DECISION",
+                 "INVALID_PICKUP_AVAILABILITY", "PACKAGE_NOT_PROVIDER_SUBMITTED" -> HttpStatus.BAD_REQUEST;
+            default -> HttpStatus.CONFLICT;
+        };
+        return ResponseEntity.status(status)
                 .body(ApiError.of(exception.code(), exception.getMessage(), traceId(request)));
     }
 

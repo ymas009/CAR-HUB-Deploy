@@ -49,13 +49,65 @@ export interface ApiPackage {
   summary: string;
   description: string;
   startingPrice: number;
+  distanceKm?: number;
+  pricePerKm?: number;
+  providerPayout?: number;
   currency: string;
   durationDays: number;
   imageUrl: string;
+  videoUrl?: string;
+  carPhotoUrl?: string;
+  localPlaces?: string;
+  carType?: string;
+  licenseNumber?: string;
+  licenseHolderName?: string;
+  licenseDetails?: string;
+  licenseDocumentUrl?: string;
+  carNumber?: string;
+  carModel?: string;
+  carColor?: string;
+  seatsAvailable?: number;
+  providerNotes?: string;
+  pickupAvailabilityMode?: "ALWAYS" | "SPECIFIC";
+  pickupStartTime?: string;
+  pickupEndTime?: string;
   featured: boolean;
   availabilityStatus?: string;
   providerBusinessName?: string;
   reviewNotes?: string;
+  rcNumber?: string;
+  rcDocumentUrl?: string;
+  repostedFromId?: string;
+  providerCompletedCount?: number;
+}
+
+export interface BookingTicket {
+  id: string;
+  ticketNumber: string;
+  packageId: string;
+  packageName: string;
+  destination: string;
+  route: string;
+  travellersCount: number;
+  carType: "FOUR_SEATER" | "SIX_SEATER";
+  carDetails: string;
+  carPhotoUrl?: string;
+  carNumber?: string;
+  carModel?: string;
+  carColor?: string;
+  specialRequests?: string;
+  pickupLocation?: string;
+  pickupDate?: string;
+  pickupTime?: string;
+  paymentReference?: string;
+  status: string;
+  providerBusinessName: string;
+  providerContactNumber: string;
+  customerName?: string;
+  customerEmail?: string;
+  customerMobile?: string;
+  travellersDetails?: string;
+  createdAt: string;
 }
 
 export interface ApiRequest {
@@ -71,10 +123,47 @@ export interface ApiRequest {
 
 export interface ProviderProfile {
   id: string;
+  userId?: string;
   businessName: string;
   contactPerson: string;
+  email?: string;
+  mobile?: string;
+  businessAddress?: string;
+  pinCode?: string;
+  serviceLocations?: string;
+  categories?: string;
+  rcNumber?: string;
+  rcDocumentUploaded?: boolean;
   verificationStatus: string;
   suspended: boolean;
+  qualityScore?: number;
+  complaintCount?: number;
+  documentExpiryDate?: string;
+  packageCount?: number;
+  bookingCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CustomerOverview {
+  id: string;
+  userId: string;
+  fullName: string;
+  email: string;
+  mobile: string;
+  status: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  pinCode?: string;
+  preferredTravelType?: string;
+  emergencyContactName?: string;
+  emergencyContactMobile?: string;
+  profileCompleted: boolean;
+  bookingCount: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface ProviderAssignment {

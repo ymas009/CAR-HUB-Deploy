@@ -4,20 +4,20 @@ import { matchesPackageQuery } from "./packageSearch";
 
 const packageCard: PackageCard = {
   id: "pkg-1",
-  title: "Family Beach Escape",
-  destination: "Goa",
-  category: "Holiday",
+  title: "Alibaug Coastal Escape",
+  destination: "Alibaug",
+  category: "Beach",
   duration: "4 days",
   price: "From INR 24,000",
-  image: "/goa.jpg",
-  trust: "Company reviewed request flow",
+  image: "/alibaug.jpg",
+  trust: "Direct booking with verified providers",
   accent: "Coastal stay with verified local execution"
 };
 
 describe("matchesPackageQuery", () => {
   it("matches by destination, category, title, and accent copy", () => {
-    expect(matchesPackageQuery(packageCard, "goa")).toBe(true);
-    expect(matchesPackageQuery(packageCard, "holiday")).toBe(true);
+    expect(matchesPackageQuery(packageCard, "alibaug")).toBe(true);
+    expect(matchesPackageQuery(packageCard, "beach")).toBe(true);
     expect(matchesPackageQuery(packageCard, "beach")).toBe(true);
     expect(matchesPackageQuery(packageCard, "verified")).toBe(true);
   });
@@ -27,6 +27,6 @@ describe("matchesPackageQuery", () => {
   });
 
   it("rejects unrelated queries", () => {
-    expect(matchesPackageQuery(packageCard, "himalaya")).toBe(false);
+    expect(matchesPackageQuery(packageCard, "kerala")).toBe(false);
   });
 });

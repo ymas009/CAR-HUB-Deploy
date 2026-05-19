@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(timeout 40 mvn spring-boot:run)"
+    ]
+  }
+}

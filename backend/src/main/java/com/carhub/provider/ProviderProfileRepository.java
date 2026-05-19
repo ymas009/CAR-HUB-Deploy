@@ -7,4 +7,5 @@ import java.util.UUID;
 
 public interface ProviderProfileRepository extends JpaRepository<ProviderProfile, UUID> {
     Optional<ProviderProfile> findByUserId(UUID userId);
+    Optional<ProviderProfile> findFirstByVerificationStatusAndSuspendedFalseOrderByCreatedAtAsc(String verificationStatus);
 }

@@ -1,0 +1,33 @@
+MAHARASHTRA TRAVEL IMAGE PROMPTS
+
+Use these prompts in Gemini / ChatGPT image generator if you want realistic PNG/JPG images.
+Keep the same file names and replace the SVG files inside:
+src/assets/maharashtra-travel/
+
+1) Background image prompt:
+Create a premium travel website hero background for “Explore Maharashtra from Pune”.
+Soft cream to sky-blue gradient background, Shaniwar Wada silhouette on the right side, Western Ghats / Lonavala hills at the bottom, subtle Pune to Maharashtra route line, soft morning sunlight, minimal clean Indian travel aesthetic, no text, no people, web hero banner, 16:9, ultra high resolution.
+
+2) Lonavala card image prompt:
+Lonavala hills and waterfalls near Pune, misty Western Ghats, lush green valley, monsoon travel mood, premium travel website card image, no text, 4:3.
+
+3) Mahabaleshwar card image prompt:
+Mahabaleshwar viewpoint with green valley, strawberry farms hint, cloudy hill station atmosphere, premium travel website card image, no text, 4:3.
+
+4) Alibaug card image prompt:
+Alibaug beach near Maharashtra, clean sea waves, golden sand, coconut trees, soft sunny sky, premium travel website card image, no text, 4:3.
+
+5) Matheran card image prompt:
+Matheran toy train in green forest hills, peaceful no-vehicle hill station vibe, premium travel website card image, no text, 4:3.
+
+6) Lavasa card image prompt:
+Lavasa lake city near Pune, calm lake, colorful hillside buildings, soft morning light, premium travel website card image, no text, 4:3.
+
+7) Nashik card image prompt:
+Nashik vineyard and temple route, green grape fields, scenic Maharashtra countryside, premium travel website card image, no text, 4:3.
+
+8) Shirdi card image prompt:
+Shirdi Sai Baba temple inspired travel image, warm golden morning light, devotional peaceful mood, premium travel website card image, no text, 4:3.
+
+9) Kolad card image prompt:
+Kolad river rafting adventure in Maharashtra, blue river, green valley, energetic travel mood, premium travel website card image, no text, 4:3.

@@ -1,0 +1,19 @@
+<svg width="900" height="560" viewBox="0 0 900 560" xmlns="http://www.w3.org/2000/svg">
+<defs>
+ <linearGradient id="sky" x1="0" y1="0" x2="0" y2="560">
+  <stop stop-color="#9DDCF4"/>
+  <stop offset=".60" stop-color="#FFF2D5"/>
+  <stop offset="1" stop-color="#4BAA8D"/>
+ </linearGradient>
+ <filter id="soft"><feGaussianBlur stdDeviation="18"/></filter>
+</defs>
+<rect width="900" height="560" fill="url(#sky)"/>
+<circle cx="745" cy="110" r="72" fill="#FFF4BF" opacity=".78" filter="url(#soft)"/>
+
+<path d="M0 385 C160 300 285 355 430 290 C595 218 730 315 900 245 V560 H0Z" fill="#276B67" opacity=".42"/>
+<path d="M210 560 C320 470 485 445 590 385 C700 320 780 280 900 250 V560 Z" fill="#72C6DF" opacity=".84"/>
+<path d="M515 417 l70 -25 l72 32 c-42 24 -100 24 -142 -7z" fill="#F1862D" opacity=".96"/>
+<path d="M490 395 l50 55M680 397 l-56 55" stroke="#2B4C55" stroke-width="8" stroke-linecap="round"/>
+
+<text x="58" y="116" font-family="Arial, sans-serif" font-size="76">🚣</text>
+</svg>

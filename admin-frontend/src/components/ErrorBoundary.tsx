@@ -26,7 +26,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBound
         <section className="static-panel">
           <span className="eyebrow">CarHub recovered safely</span>
           <h1>Something went wrong on this screen.</h1>
-          <p>Refresh the page or return to package discovery. Your provider sharing and request data remain protected by backend authorization.</p>
+          <p>Refresh the page or return to package discovery. Your booking, package, and admin data remain protected by backend authorization.</p>
           <Link className="primary-button" to="/" onClick={() => this.setState({ hasError: false })}>
             Return home
           </Link>

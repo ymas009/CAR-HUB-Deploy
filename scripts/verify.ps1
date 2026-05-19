@@ -12,6 +12,10 @@ Push-Location (Join-Path $repoRoot "frontend")
 & "$nodePath\npm.cmd" run build
 Pop-Location
 
+Push-Location (Join-Path $repoRoot "provider-frontend")
+& "$nodePath\npm.cmd" run build
+Pop-Location
+
 Push-Location (Join-Path $repoRoot "admin-frontend")
 & "$nodePath\npm.cmd" run build
 Pop-Location

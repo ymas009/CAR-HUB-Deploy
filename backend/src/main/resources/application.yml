@@ -1,13 +1,24 @@
 server:
-  port: 8080
-
+  port: 8081
+  
 spring:
   application:
     name: carhub-backend
   datasource:
-    url: ${CARHUB_DB_URL:jdbc:postgresql://localhost:5432/carhub}
+    url: ${CARHUB_DB_URL:jdbc:postgresql://localhost:5433/carhub}
     username: ${CARHUB_DB_USER:carhub}
     password: ${CARHUB_DB_PASSWORD:carhub}
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: ${CARHUB_MAIL_USERNAME:}
+    password: ${CARHUB_MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
   jpa:
     hibernate:
       ddl-auto: validate
@@ -27,8 +38,13 @@ management:
 
 carhub:
   cors:
-    allowed-origins: ${CARHUB_CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174,http://localhost:8088,http://localhost:8089}
+    allowed-origins: ${CARHUB_CORS_ALLOWED_ORIGINS:http://localhost:*,http://127.0.0.1:*,http://localhost:8088,http://localhost:8089}
   security:
     provider-access-default-hours: 72
     jwt-secret: ${CARHUB_JWT_SECRET:dev-only-change-this-secret-before-production}
     token-hours: ${CARHUB_TOKEN_HOURS:12}
+
+razorpay:
+  key-id: ${RAZORPAY_KEY_ID:}
+  key-secret: ${RAZORPAY_KEY_SECRET:}
+  currency: ${RAZORPAY_CURRENCY:INR}

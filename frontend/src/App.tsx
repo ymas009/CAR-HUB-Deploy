@@ -1,18 +1,28 @@
 import { Route, Routes } from "react-router-dom";
+import { useEffect } from "react";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Layout } from "./components/Layout";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import {
   AuthPage,
+  BookingConfirmationPage,
   CustomerDashboard,
   ExplorePage,
   HomePage,
+  MemberSelectionPage,
   NotFoundPage,
   PackageDetailsPage,
-  ProviderDashboard,
-  RequestWizardPage,
   StaticPage
 } from "./pages/Pages";
+
+const providerAppUrl = (import.meta.env.VITE_PROVIDER_APP_URL ?? "http://localhost:5175").replace(/\/$/, "");
+
+function ProviderPortalRedirect() {
+  useEffect(() => {
+    window.location.replace(`${providerAppUrl}/provider`);
+  }, []);
+  return null;
+}
 
 export function App() {
   return (
@@ -32,11 +42,10 @@ export function App() {
           <Route path="/forgot-password" element={<AuthPage mode="forgot" />} />
           <Route element={<ProtectedRoute roles={["CUSTOMER"]} />}>
             <Route path="/customer/*" element={<CustomerDashboard />} />
-            <Route path="/request/:packageId" element={<RequestWizardPage />} />
+            <Route path="/booking/:packageId" element={<MemberSelectionPage />} />
+            <Route path="/booking/confirmation/:ticketId" element={<BookingConfirmationPage />} />
           </Route>
-          <Route element={<ProtectedRoute roles={["PROVIDER"]} />}>
-            <Route path="/provider/*" element={<ProviderDashboard />} />
-          </Route>
+          <Route path="/provider/*" element={<ProviderPortalRedirect />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>

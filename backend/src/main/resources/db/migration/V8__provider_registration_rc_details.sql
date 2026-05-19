@@ -1,0 +1,6 @@
+ALTER TABLE provider_profile
+    ADD COLUMN IF NOT EXISTS pin_code VARCHAR(12),
+    ADD COLUMN IF NOT EXISTS latitude VARCHAR(40),
+    ADD COLUMN IF NOT EXISTS longitude VARCHAR(40),
+    ADD COLUMN IF NOT EXISTS rc_number VARCHAR(40),
+    ADD COLUMN IF NOT EXISTS rc_document_image TEXT;

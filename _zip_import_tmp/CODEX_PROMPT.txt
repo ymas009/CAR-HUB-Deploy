@@ -1,0 +1,65 @@
+You are working inside my React/Vite frontend project in VS Code.
+
+I uploaded a ZIP file named pune_maharashtra_travel_ui_pack.zip.
+Integrate this ZIP into my existing project.
+
+Goal:
+Replace/add the destination section with a premium “Explore Maharashtra from Pune” section.
+The package is ONLY for Maharashtra visiting places from Pune, not outside Maharashtra.
+
+Very important:
+1. First unzip and inspect pune_maharashtra_travel_ui_pack.zip.
+2. Copy these files into my project:
+   - src/components/MaharashtraDestinations.jsx
+   - src/components/MaharashtraDestinations.css
+   - src/assets/maharashtra-travel/*
+3. Install missing dependency only if needed:
+   npm install lucide-react
+4. Do not remove or break my existing navbar, footer, routes, login, booking flow, or existing pages.
+5. If my project already has an “Explore destinations from Pune” or “Popular routes” section, replace only that section with MaharashtraDestinations.
+6. If there is no matching section, add MaharashtraDestinations on the Home page below the main hero/search section.
+7. Fix import paths according to my current project folder structure.
+8. Use only local images from src/assets/maharashtra-travel. Do not use external image URLs.
+9. Keep the UI close to the provided design:
+   - soft cream to sky-blue Maharashtra travel background
+   - Shaniwar Wada / Pune heritage style background
+   - Western Ghats / Lonavala hills feeling
+   - search bar
+   - category chips
+   - route cards
+   - stats bar
+   - rounded premium cards and smooth shadows
+10. Make the section fully responsive for desktop, tablet and mobile.
+11. Run npm run build and fix all errors.
+
+Content must be Maharashtra-only:
+Heading:
+Explore Maharashtra from Pune.
+
+Subtitle:
+Lonavala, Mahabaleshwar, Alibaug, forts, beaches and weekend trips curated for Pune travelers.
+
+Popular routes:
+- Pune → Lonavala
+- Pune → Mahabaleshwar
+- Pune → Alibaug
+- Pune → Matheran
+- Pune → Lavasa
+- Pune → Nashik
+- Pune → Shirdi
+- Pune → Kolad
+
+Categories:
+Weekend Trips, Hill Stations, Beaches, Forts, One Day Trip, Family Tour, Couple Trip, Adventure
+
+Stats:
+80+ Maharashtra Routes
+25K+ Happy Travelers
+4.8★ Overall Rating
+Local Verified Packages
+
+After integration:
+- Tell me exactly which files you changed.
+- Tell me where you imported MaharashtraDestinations.
+- Confirm npm run build passes.
+- Do not make unnecessary changes.
