@@ -24,6 +24,7 @@ export interface PackageCard {
   distance_from_pune: string;
   travel_time: string;
   highlights: string;
+  localPlaces?: string;
   category: string;
   image: string;
   video?: string;
@@ -76,6 +77,10 @@ export interface ApiPackage {
   reviewNotes?: string;
   rcNumber?: string;
   rcDocumentUrl?: string;
+  region?: string;
+  routeOrder?: string;
+  totalDistanceKm?: number;
+  subPlaces?: string;
 }
 
 export interface ApiRequest {
@@ -109,7 +114,7 @@ export interface SupportTicket {
 }
 
 export type CarType = "FOUR_SEATER" | "SIX_SEATER";
-export type TicketStatus = "BOOKED" | "ASSIGNED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
+export type TicketStatus = "BOOKED" | "ASSIGNED" | "IN_PROGRESS" | "COMPLETION_OTP_PENDING" | "COMPLETED" | "CANCELLED";
 
 export interface BookingTicket {
   id: string;
@@ -133,6 +138,12 @@ export interface BookingTicket {
   status: TicketStatus;
   providerBusinessName: string;
   providerContactNumber: string;
+  providerLatitude?: string;
+  providerLongitude?: string;
+  providerLocationUpdatedAt?: string;
+  journeyStartedAt?: string;
+  completionOtpExpiresAt?: string;
+  completedAt?: string;
   createdAt: string;
 }
 
@@ -167,14 +178,23 @@ export interface ProviderTicket {
   pickupTime?: string;
   maskedCustomerRef: string;
   status: TicketStatus;
+  providerLatitude?: string;
+  providerLongitude?: string;
+  providerLocationUpdatedAt?: string;
+  journeyStartedAt?: string;
+  completionOtpExpiresAt?: string;
+  completedAt?: string;
   createdAt: string;
 }
 
 export interface FeedbackItem {
   id: string;
-  requestId: string;
+  requestId?: string;
+  ticketId?: string;
   packageRating: number;
+  providerRating: number;
   supportRating: number;
+  comment?: string;
   moderationStatus: string;
   createdAt: string;
 }

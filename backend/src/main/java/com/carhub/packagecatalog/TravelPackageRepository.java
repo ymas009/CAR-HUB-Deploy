@@ -42,6 +42,18 @@ public interface TravelPackageRepository extends JpaRepository<TravelPackage, UU
             """)
     Optional<TravelPackage> findPubliclyBookableById(@Param("id") UUID id);
 
+    @Query("""
+            select pack from TravelPackage pack
+            where pack.availabilityStatus = 'AVAILABLE'
+            and pack.region = :region
+            and not exists (
+                select ticket.id from Ticket ticket
+                where ticket.travelPackage = pack
+            )
+            order by pack.featured desc, pack.title asc
+            """)
+    List<TravelPackage> findPubliclyBookableByRegion(@Param("region") String region);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select pack from TravelPackage pack

@@ -1,6 +1,7 @@
 import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
+import { CredentialResponse, GoogleLogin } from "@react-oauth/google";
 import { pickupPoints } from "../data/pickupPoints";
 
 import {
@@ -9,6 +10,8 @@ import {
   CalendarDays,
   CarFront,
   CheckCircle2,
+  ChevronDown,
+  ChevronRight,
   ClipboardCheck,
   Clock3,
   Crown,
@@ -17,6 +20,7 @@ import {
   Heart,
   Eye,
   EyeOff,
+  LayoutDashboard,
   LifeBuoy,
   LockKeyhole,
   MapPin,
@@ -326,20 +330,32 @@ function openProviderPortal(action: "login" | "register") {
   window.location.assign(`${providerAppUrl}/${action}`);
 }
 
+function formatDistanceFromPune(distanceKm?: number) {
+  return typeof distanceKm === "number" && Number.isFinite(distanceKm)
+    ? `${Math.round(distanceKm)} km`
+    : "Distance unavailable";
+}
+
 function toCard(item: ApiPackage): PackageCard {
   return {
     id: item.id,
     place: item.title,
     destination: item.destination,
-    distance_from_pune: "Distance TBD",
-    travel_time: `${item.durationDays} days`,
+    distance_from_pune: formatDistanceFromPune(item.totalDistanceKm ?? item.distanceKm),
+    travel_time: `${item.durationDays} day${item.durationDays !== 1 ? "s" : ""}`,
     durationDays: item.durationDays,
     startingPrice: item.startingPrice,
     currency: item.currency,
     highlights: item.summary,
+    localPlaces: item.localPlaces,
     category: item.category,
     image: item.imageUrl,
-    video: item.videoUrl
+    video: item.videoUrl,
+    region: item.region,
+    carType: item.carType,
+    subPlaces: item.subPlaces,
+    routeOrder: item.routeOrder,
+    totalDistanceKm: item.totalDistanceKm
   };
 }
 
@@ -429,78 +445,189 @@ function usePackages() {
   return { items, loading, source };
 }
 
+const HOME_BENEFITS = [
+  {
+    title: "Verified trips",
+    description: "Provider-backed routes with clear booking steps.",
+    icon: ShieldCheck
+  },
+  {
+    title: "Simple booking",
+    description: "Choose, confirm, and get your ticket.",
+    icon: TicketCheck
+  },
+  {
+    title: "Travel support",
+    description: "Help is easy to find when needed.",
+    icon: Headphones
+  }
+] as const;
+
+const HOME_CONFIDENCE_POINTS = [
+  "Verified providers",
+  "Clear routes",
+  "Trip support"
+] as const;
+
 export function HomePage() {
   const navigate = useNavigate();
   const { items } = usePackages();
+  const featuredItems = items.length > 0 ? items.slice(0, 6) : fallbackPackages.slice(0, 6);
+  const destinationCount = new Set(featuredItems.map((item) => item.destination ?? item.place)).size;
+  const highlightedRegions = Array.from(new Set(featuredItems.map((item) => item.region).filter(Boolean))).slice(0, 3) as string[];
 
   return (
-    <div className="page">
-      <section className="hero-section">
+    <div className="page customer-home-page">
+      <section className="customer-home-hero">
         <div className="hero-media-wrapper">
-          <video 
-            className="hero-video" 
-            autoPlay 
-            loop 
-            muted 
+          <video
+            className="hero-video"
+            autoPlay
+            loop
+            muted
             playsInline
-            src="/hero-background.mp4"
+            poster="/BG.png"
+            src="/lonavala-video.mp4"
           />
           <div className="hero-overlay" aria-hidden="true"></div>
         </div>
-        <motion.div 
-          className="hero-content" 
-          initial="hidden" 
-          animate="visible" 
+        <motion.div
+          className="customer-home-hero-inner"
+          initial="hidden"
+          animate="visible"
           variants={{
             hidden: { opacity: 0 },
-            visible: { 
+            visible: {
               opacity: 1,
-              transition: { staggerChildren: 0.15, delayChildren: 0.2 }
+              transition: { staggerChildren: 0.12, delayChildren: 0.12 }
             }
           }}
         >
-          <motion.div className="eyebrow" variants={fadeUp}>
-            <ShieldCheck size={18} />
-            Direct provider booking
-          </motion.div>
-          <motion.h1 className="hero-title" variants={fadeUp}>
-            Luxury Travel Reimagined.
-          </motion.h1>
-          <motion.p variants={fadeUp}>
-            Curated premium journeys from Pune to Maharashtra's most exclusive destinations.
-          </motion.p>
-          <motion.div className="hero-actions" variants={fadeUp}>
-            <button className="primary-button large" onClick={() => navigate("/packages")}>
-              Explore Packages
-              <ArrowRight size={18} />
-            </button>
-            <button className="glass-button" onClick={() => navigate("/contact")}>Talk to Support</button>
-          </motion.div>
-          <motion.div className="trust-grid" variants={fadeUp}>
-            {/* {["Admin approved", "Verified partners", "Travel support"].map((item) => (
-              <span key={item}>
-                <CheckCircle2 size={16} />
-                {item}
-              </span>
-            ))} */}
-          </motion.div>
+          <div className="customer-home-hero-copy">
+            <motion.div className="eyebrow" variants={fadeUp}>
+              <ShieldCheck size={18} />
+              Curated departures from Pune
+            </motion.div>
+            <motion.h1 className="hero-title" variants={fadeUp}>
+              Premium road trips from Pune.
+            </motion.h1>
+            <motion.p variants={fadeUp}>
+              Explore curated escapes, compare quickly, and book with confidence.
+            </motion.p>
+            <motion.div className="customer-home-hero-actions" variants={fadeUp}>
+              <button className="primary-button large" onClick={() => navigate("/packages")}>
+                Explore Packages
+                <ArrowRight size={18} />
+              </button>
+              <button className="outline-button" onClick={() => navigate("/contact")}>Contact Support</button>
+            </motion.div>
+            <motion.div className="customer-home-trust-row" variants={fadeUp}>
+              {HOME_CONFIDENCE_POINTS.map((item) => (
+                <span key={item}>
+                  <CheckCircle2 size={15} />
+                  {item}
+                </span>
+              ))}
+            </motion.div>
+          </div>
+          <motion.aside className="customer-home-overview-card" variants={fadeUp}>
+            <div className="customer-home-overview-head">
+              <span className="eyebrow">Overview</span>
+              <strong>Quick trip scan</strong>
+            </div>
+            <div className="customer-home-overview-stats">
+              <div>
+                <strong>{featuredItems.length}</strong>
+                <span>Curated routes</span>
+              </div>
+              <div>
+                <strong>{destinationCount}</strong>
+                <span>Destinations</span>
+              </div>
+              <div>
+                <strong>7 days</strong>
+                <span>Support week</span>
+              </div>
+            </div>
+            <div className="customer-home-overview-list">
+              <span className="customer-home-overview-label">Popular regions</span>
+              <div className="customer-home-overview-chips">
+                {(highlightedRegions.length > 0 ? highlightedRegions : ["Pune", "Konkan", "Nashik"]).map((region) => (
+                  <span key={region}>{region}</span>
+                ))}
+              </div>
+            </div>
+            <div className="customer-home-overview-note">
+              <Headphones size={16} />
+              <p>Support for route and booking help.</p>
+            </div>
+          </motion.aside>
         </motion.div>
       </section>
 
-      <section className="content-band">
-        <div className="section-heading">
-          <span className="eyebrow">Featured journeys</span>
-          <h2>Curated destinations starting from Pune.</h2>
+      <section className="customer-home-feature-band">
+        <div className="customer-home-section-heading">
+          <span className="eyebrow">Why CarHub</span>
+          <h2>Plan faster. Travel clearer.</h2>
+          <p>Clean packages, clear routes, and visible support.</p>
         </div>
-        <div className="package-grid">
-          {items.slice(0, 4).map((item, index) => <PackageTile key={item.id} item={item} index={index} />)}
+        <div className="customer-home-feature-grid">
+          {HOME_BENEFITS.map((item, index) => {
+            const Icon = item.icon;
+            return (
+              <motion.article
+                key={item.title}
+                className="customer-home-feature-card"
+                initial="hidden"
+                whileInView="visible"
+                viewport={{ once: true, margin: "-60px" }}
+                variants={fadeUp}
+                transition={{ delay: index * 0.06 }}
+              >
+                <span className="customer-home-feature-icon"><Icon size={18} /></span>
+                <h3>{item.title}</h3>
+                <p>{item.description}</p>
+              </motion.article>
+            );
+          })}
         </div>
       </section>
 
-      <section className="workflow-band">
-        <div>
+      <section className="customer-home-packages-band">
+        <div className="customer-home-section-heading customer-home-section-heading-row">
+          <div>
+            <span className="eyebrow">Featured journeys</span>
+            <h2>Featured routes.</h2>
+          </div>
+          <button className="ghost-button customer-home-section-link" onClick={() => navigate("/packages")}>
+            View all packages
+            <ArrowRight size={16} />
+          </button>
+        </div>
+        <div className="customer-home-package-grid">
+          {featuredItems.map((item, index) => <PackageTile key={item.id} item={item} index={index} />)}
+        </div>
+      </section>
+
+      <section className="customer-home-support-band">
+        <div className="customer-home-support-copy">
+          <span className="eyebrow">Travel support</span>
+          <h2>Need help choosing?</h2>
+          <p>Contact support for route, pickup, or booking questions.</p>
+        </div>
+        <div className="customer-home-support-actions">
+          <button className="primary-button" onClick={() => navigate("/packages")}>
+            Start exploring
+            <ArrowRight size={16} />
+          </button>
+          <button className="outline-button" onClick={() => navigate("/contact")}>Talk to us</button>
+        </div>
+      </section>
+
+      <section className="workflow-band customer-home-workflow-band">
+        <div className="customer-home-section-heading customer-home-section-heading-compact">
           <span className="eyebrow">How CarHub works</span>
-          <h2>Pay, generate ticket, and connect with your provider.</h2>
+          <h2>Choose, book, travel.</h2>
         </div>
         <div className="workflow-rail">
           {workflow.map((step, index) => (
@@ -515,10 +642,13 @@ export function HomePage() {
   );
 }
 
+const REGIONS = ["Pune", "Nashik", "Shirdi", "Multi-Region"] as const;
+
 export function ExplorePage() {
   const { items, loading, source } = usePackages();
   const [query, setQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
   const [chipRail, setChipRail] = useState<HTMLDivElement | null>(null);
 
   const categories = useMemo(() => {
@@ -529,20 +659,21 @@ export function ExplorePage() {
     return items.filter((item) => {
       const matchesSearch = matchesPackageQuery(item, query);
       const matchesCategory = !selectedCategory || item.category === selectedCategory;
-      return matchesSearch && matchesCategory;
+      const matchesRegion = !selectedRegion || item.region === selectedRegion;
+      return matchesSearch && matchesCategory && matchesRegion;
     });
-  }, [items, query, selectedCategory]);
+  }, [items, query, selectedCategory, selectedRegion]);
 
   const quickFilters = [
-    { label: "Weekend Trips", value: null, icon: CalendarDays },
-    { label: "Hill Stations", value: categories.find((item) => /hill/i.test(item)) ?? "Hill Station / Scenic Town", icon: Mountain },
-    { label: "Beaches", value: categories.find((item) => /beach/i.test(item)) ?? "Beach / Coastal Town", icon: Waves },
-    { label: "Forts", value: categories.find((item) => /fort/i.test(item)) ?? "Fort / History", icon: Castle },
-    { label: "One Day Trip", value: categories[0] ?? null, icon: SunMedium },
+    { label: "All Trips", value: null, icon: CalendarDays },
+    { label: "Heritage", value: categories.find((item) => /heritage/i.test(item)) ?? "Heritage", icon: Castle },
+    { label: "Spiritual", value: categories.find((item) => /spiritual/i.test(item)) ?? "Spiritual", icon: Star },
+    { label: "Nature", value: categories.find((item) => /^nature$/i.test(item)) ?? "Nature", icon: Mountain },
+    { label: "Weekend", value: categories.find((item) => /weekend/i.test(item)) ?? "Weekend", icon: SunMedium },
+    { label: "Mixed", value: categories.find((item) => /mixed/i.test(item)) ?? "Mixed", icon: Waves },
     { label: "Family Tour", value: categories.find((item) => /nature|family/i.test(item)) ?? null, icon: Users },
-    { label: "Couple Trip", value: categories.find((item) => /lake|beach|scenic/i.test(item)) ?? null, icon: Heart },
-    { label: "Adventure", value: categories.find((item) => /adventure|fort|hill|trek/i.test(item)) ?? null, icon: Mountain },
-    { label: "Luxury Stay", value: categories.find((item) => /modern|city|luxury/i.test(item)) ?? null, icon: Crown }
+    { label: "Couple Trip", value: categories.find((item) => /wine|scenic/i.test(item)) ?? null, icon: Heart },
+    { label: "Grand Tour", value: categories.find((item) => /grand/i.test(item)) ?? "Grand Spiritual", icon: Crown }
   ];
 
   function scrollCategories() {
@@ -552,6 +683,7 @@ export function ExplorePage() {
   function clearFilters() {
     setQuery("");
     setSelectedCategory(null);
+    setSelectedRegion(null);
   }
 
   return (
@@ -559,11 +691,17 @@ export function ExplorePage() {
       <div className="explore-video-layer" aria-hidden="true" />
       <section className="explore-hero">
         <div className="explore-hero-copy">
-          <span className="eyebrow">Explore</span>
+          <span className="eyebrow">Explore journeys</span>
           <h1>
-            <span className="headline-line">Explore destinations</span>
+            <span className="headline-line">Explore road trips</span>
             <span className="headline-line">from <span className="headline-accent">Pune.</span></span>
           </h1>
+          <p className="explore-hero-tagline">Browse curated weekend, hill, coastal, and spiritual routes.</p>
+          <div className="explore-hero-highlights">
+            <span><ShieldCheck size={15} /> Verified routes</span>
+            <span><TicketCheck size={15} /> Ticket booking</span>
+            <span><Headphones size={15} /> Support</span>
+          </div>
         </div>
         <div className="explore-hero-media">
           <div
@@ -574,24 +712,48 @@ export function ExplorePage() {
         </div>
       </section>
       <section className="explore-browse-panel" aria-label="Search and filter packages">
-        <div className="search-box explore-search">
-          <Search size={20} />
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search Pune to Lonavala, Mahabaleshwar, Alibaug, forts..."
-            aria-label="Search packages"
-          />
-          {query && (
+        <div className="explore-panel-top">
+          <div className="search-box explore-search">
+            <Search size={19} />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search destinations, trips or themes..."
+              aria-label="Search packages"
+            />
+            {query && (
+              <button
+                className="search-clear-btn"
+                onClick={() => setQuery("")}
+                aria-label="Clear search"
+              >
+                <X size={17} />
+              </button>
+            )}
+          </div>
+        </div>
+        <div className="region-filter-tabs" role="tablist" aria-label="Filter by region">
+          <button
+            type="button"
+            role="tab"
+            className={`region-tab ${!selectedRegion ? "active" : ""}`}
+            aria-selected={!selectedRegion}
+            onClick={() => setSelectedRegion(null)}
+          >
+            All
+          </button>
+          {REGIONS.map((region) => (
             <button
-              className="search-clear-btn"
-              onClick={() => setQuery("")}
-              aria-label="Clear search"
+              type="button"
+              role="tab"
+              key={region}
+              className={`region-tab ${selectedRegion === region ? "active" : ""}`}
+              aria-selected={selectedRegion === region}
+              onClick={() => setSelectedRegion(region)}
             >
-              <X size={18} />
+              {region}
             </button>
-          )}
-          <button className="icon-button" aria-label="Filter packages"><SlidersHorizontal size={20} /></button>
+          ))}
         </div>
         <div className="explore-chip-row-wrap">
           <div className="explore-chip-row" ref={setChipRail}>
@@ -603,6 +765,7 @@ export function ExplorePage() {
                   type="button"
                   key={filter.label}
                   className={`explore-chip ${active ? "active" : ""}`}
+                  data-filter={filter.label.toLowerCase().replace(/\s+/g, "-")}
                   aria-pressed={active}
                   onClick={() => setSelectedCategory(filter.value)}
                 >
@@ -636,8 +799,9 @@ export function ExplorePage() {
               <div>
                 <span className="eyebrow">Available packages</span>
                 <h2 id="explore-results-heading">
-                  {filteredItems.length} curated trip{filteredItems.length === 1 ? "" : "s"} ready to book
+                  {filteredItems.length} trip{filteredItems.length === 1 ? "" : "s"} available
                 </h2>
+                <p className="explore-listing-copy">Pick a route and view details.</p>
               </div>
               <div className="explore-results-actions">
                 <div className="explore-results-count">
@@ -676,6 +840,7 @@ function getPackageRating(item: PackageCard, index: number) {
 
 function ExplorePackageCard({ item, index }: { item: PackageCard; index: number }) {
   const rating = getPackageRating(item, index);
+  const stopCount = item.subPlaces ? item.subPlaces.split(",").filter(Boolean).length : item.localPlaces ? item.localPlaces.split(",").filter(Boolean).length : 0;
 
   return (
     <motion.article
@@ -697,29 +862,40 @@ function ExplorePackageCard({ item, index }: { item: PackageCard; index: number 
         </span>
       </Link>
       <div className="explore-package-content">
+        <div className="explore-package-topline">
+          {item.region && <span className="region-badge-sm">{item.region}</span>}
+          <span className="explore-package-badge"><TicketCheck size={13} />{item.category}</span>
+        </div>
         <div className="explore-package-title-row">
           <div>
             <span className="explore-package-kicker">
-              <MapPin size={14} />
+              <MapPin size={13} />
               {item.destination ?? item.place}
             </span>
             <h3>{item.place}</h3>
           </div>
           <strong className="explore-package-price">{formatPackagePrice(item)}</strong>
         </div>
-        <p>{item.highlights}</p>
+        <p className="package-route-description">{item.highlights}</p>
+        {item.subPlaces && (
+          <p className="explore-subplaces-preview">
+            <MapPin size={12} />
+            {item.subPlaces.split(",").slice(0, 3).map(p => p.trim()).join(" / ")}
+            {item.subPlaces.split(",").length > 3 && ` +${item.subPlaces.split(",").length - 3} more`}
+          </p>
+        )}
         <div className="explore-package-meta">
-          <span className="explore-package-badge"><TicketCheck size={15} />{item.category}</span>
-          <span><Clock3 size={15} />{item.travel_time}</span>
-          <span><CarFront size={15} />Private car</span>
-          <span><ShieldCheck size={15} />Verified provider</span>
+          <span><Clock3 size={13} />{item.travel_time}</span>
+          {stopCount > 0 && <span><MapPin size={13} />{stopCount} stops</span>}
+          {item.carType && (
+            <span><CarFront size={13} />{item.carType === "SIX_SEATER" ? "6-Seater" : "4-Seater"}</span>
+          )}
         </div>
         <div className="explore-package-actions">
           <Link className="primary-button" to={`/packages/${item.id}`}>
             View details
-            <ArrowRight size={17} />
+            <ArrowRight size={15} />
           </Link>
-          <span className="explore-package-note">Instant ticket after payment</span>
         </div>
       </div>
     </motion.article>
@@ -729,12 +905,14 @@ function ExplorePackageCard({ item, index }: { item: PackageCard; index: number 
 function PackageTile({ item, index }: { item: PackageCard; index: number }) {
   const navigate = useNavigate();
   const [isZoomed, setIsZoomed] = useState(false);
+  const rating = getPackageRating(item, index);
+  const subplacePreview = item.subPlaces ?? item.localPlaces;
 
   return (
     <>
-      <motion.div className="package-row-container" initial="hidden" animate="visible" variants={fadeUp} transition={{ delay: index * 0.08 }}>
-        <div 
-          className="package-image-card" 
+      <motion.article className="customer-home-package-card" initial="hidden" animate="visible" variants={fadeUp} transition={{ delay: index * 0.08 }}>
+        <div
+          className="customer-home-package-media"
           onClick={(e) => {
             if (item.video) return; // Don't zoom if it's a video for now, or handle separately
             setIsZoomed(true);
@@ -743,31 +921,37 @@ function PackageTile({ item, index }: { item: PackageCard; index: number }) {
           title={item.video ? undefined : "Click to zoom image"}
         >
           {item.video ? (
-            <video 
-              src={item.video} 
-              autoPlay 
-              loop 
-              muted 
-              playsInline 
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+            <video
+              src={item.video}
+              autoPlay
+              loop
+              muted
+              playsInline
+              style={{ width: "100%", height: "100%", objectFit: "cover" }}
             />
           ) : (
             <img src={item.image} alt={item.place} />
           )}
+          <span className="customer-home-package-rating">
+            <Star size={13} fill="currentColor" />
+            {rating}
+          </span>
         </div>
-        <div className="package-formal-description" onClick={() => navigate(`/packages/${item.id}`)} style={{ cursor: "pointer" }}>
-          <div className="card-meta">
-            <span>{item.category}</span>
-            <span><Clock3 size={15} /> {item.travel_time}</span>
+        <div className="customer-home-package-body" onClick={() => navigate(`/packages/${item.id}`)} style={{ cursor: "pointer" }}>
+          <div className="customer-home-package-header">
+            <span className="customer-home-package-tag">{item.category}</span>
+            <span className="customer-home-package-time"><Clock3 size={14} /> {item.travel_time}</span>
           </div>
           <h3>{item.place}</h3>
-          <p><MapPin size={15} /> {item.distance_from_pune} from Pune</p>
-          <div className="package-footer">
-            <strong className="highlights-text">{item.highlights}</strong>
-            <Link className="text-link" to={`/packages/${item.id}`}>Details</Link>
+          <p className="customer-home-package-route"><MapPin size={15} /> {item.distance_from_pune} from Pune</p>
+          <strong className="customer-home-package-highlight">{item.highlights}</strong>
+          {subplacePreview && <p className="customer-home-package-subplaces">{subplacePreview}</p>}
+          <div className="customer-home-package-footer">
+            <span>Verified route</span>
+            <Link className="text-link" to={`/packages/${item.id}`}>View details</Link>
           </div>
         </div>
-      </motion.div>
+      </motion.article>
 
       {isZoomed && createPortal(
         <div className="lightbox-overlay" onClick={() => setIsZoomed(false)}>
@@ -857,14 +1041,39 @@ export function PackageDetailsPage() {
           <img src={selected.image} alt={selected.place} />
         )}
         <div className="detail-panel">
-          <span className="eyebrow">{selected.category}</span>
+          <div className="detail-panel-badges">
+            {selected.region && <span className="region-badge-detail">{selected.region}</span>}
+            <span className="eyebrow">{selected.category}</span>
+          </div>
           <h1>{selected.place}</h1>
           <p>{selected.highlights}. Start your journey from Pune.</p>
           <div className="detail-facts">
             <span><MapPin size={17} />{selected.distance_from_pune}</span>
             <span><Clock3 size={17} />{selected.travel_time}</span>
+            {selected.carType && (
+              <span><CarFront size={17} />{selected.carType === "SIX_SEATER" ? "6-Seater SUV" : "4-Seater"}</span>
+            )}
             <span><LifeBuoy size={17} />Support visible</span>
           </div>
+          {selected.subPlaces && (
+            <div className="detail-subplaces">
+              <h3>Places covered</h3>
+              <div className="subplaces-list">
+                {selected.subPlaces.split(",").map((place) => (
+                  <span key={place.trim()} className="subplace-chip">
+                    <MapPin size={11} />
+                    {place.trim()}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          {selected.routeOrder && (
+            <div className="detail-route">
+              <h3>Route details</h3>
+              <p>{selected.routeOrder}</p>
+            </div>
+          )}
           <button className="primary-button large" onClick={() => navigate(user?.role === "CUSTOMER" ? `/booking/${selected.id}` : "/login", { state: { returnTo: `/booking/${selected.id}` } })}>
             Book Now
             <ArrowRight size={18} />
@@ -893,19 +1102,19 @@ export function MemberSelectionPage() {
     setPackageLoading(true);
     setPackageUnavailable(false);
     api.get<ApiPackage>(`/packages/${packageId}`)
-      .then(setPack)
+      .then((data) => {
+        setPack(data);
+        const type = (data.carType === "SIX_SEATER" ? "SIX_SEATER" : "FOUR_SEATER") as CarType;
+        setCarType(type);
+        const maxSeats = type === "SIX_SEATER" ? 6 : 4;
+        setTravellersCount((prev) => Math.min(prev, maxSeats));
+      })
       .catch(() => {
         setPack(null);
         setPackageUnavailable(true);
       })
       .finally(() => setPackageLoading(false));
   }, [packageId]);
-
-  useEffect(() => {
-    if (travellersCount > 4) {
-      setCarType("SIX_SEATER");
-    }
-  }, [travellersCount]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1023,16 +1232,13 @@ export function MemberSelectionPage() {
                 <FormField name="travellersCount" error={fieldErrors.travellersCount}>
                   <label className="booking-field-label" htmlFor="travellersCount">Travellers</label>
                   <select id="travellersCount" value={travellersCount} onChange={(event) => setTravellersCount(Number(event.target.value))} aria-label="Number of travellers">
-                    {[1, 2, 3, 4, 5, 6].map((count) => <option key={count} value={count}>{count} traveller{count > 1 ? "s" : ""}</option>)}
+                    {Array.from({ length: carType === "SIX_SEATER" ? 6 : 4 }, (_, i) => i + 1).map((count) => <option key={count} value={count}>{count} traveller{count > 1 ? "s" : ""}</option>)}
                   </select>
                 </FormField>
-                <FormField name="carType" error={fieldErrors.carType}>
+                <div>
                   <span className="booking-field-label">Car type</span>
-                  <div className="radio-group booking-radio-group">
-                    <label><input type="radio" checked={carType === "FOUR_SEATER"} disabled={travellersCount > 4} onChange={() => setCarType("FOUR_SEATER")} />4-seater</label>
-                    <label><input type="radio" checked={carType === "SIX_SEATER"} onChange={() => setCarType("SIX_SEATER")} />6-seater</label>
-                  </div>
-                </FormField>
+                  <p className="booking-car-type-label">{carType === "SIX_SEATER" ? "6-seater" : "4-seater"}</p>
+                </div>
               </div>
 
               <div className="booking-section-heading">
@@ -1174,15 +1380,17 @@ export function BookingConfirmationPage() {
 }
 
 export function AuthPage({ mode }: { mode: "login" | "register" | "forgot" }) {
-  const { login, logout, register, confirmRegistration } = useAuth();
+  const { login, googleLogin, logout, register, confirmRegistration } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
   const returnTo = (location.state as { returnTo?: string } | null)?.returnTo ?? "/customer";
   const authState = location.state as { role?: "CUSTOMER" | "PROVIDER"; formMode?: "login" | "register"; returnTo?: string } | null;
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [submitting, setSubmitting] = useState(false);
+  const [googleSubmitting, setGoogleSubmitting] = useState(false);
   const [selectedRole, setSelectedRole] = useState<"CUSTOMER" | "PROVIDER" | null>(authState?.role ?? null);
   const [formMode, setFormMode] = useState<"login" | "register">(authState?.formMode ?? (mode === "register" ? "register" : "login"));
   const [recoveryStep, setRecoveryStep] = useState<"request" | "otp" | "password">("request");
@@ -1274,6 +1482,42 @@ export function AuthPage({ mode }: { mode: "login" | "register" | "forgot" }) {
     setNotice("");
     setFieldErrors({});
     navigate("/login", authState?.role ? { state: { role: authState.role, formMode: "login" } } : undefined);
+  }
+
+  async function completeAuthSession(session: Awaited<ReturnType<typeof login>>) {
+    if (selectedRole && session.role !== selectedRole) {
+      logout();
+      setError(`This email is registered as a ${session.role.toLowerCase()} account. Please use the correct workspace.`);
+      return;
+    }
+
+    if (session.role === "PROVIDER") {
+      navigate("/provider");
+    } else {
+      navigate(returnTo);
+    }
+  }
+
+  async function handleGoogleSuccess(response: CredentialResponse) {
+    if (!selectedRole) {
+      setError("Choose customer or provider before using Google sign-in.");
+      return;
+    }
+    if (!response.credential) {
+      setError("Google sign-in did not return a credential.");
+      return;
+    }
+    setError("");
+    setNotice("");
+    setFieldErrors({});
+    setGoogleSubmitting(true);
+    try {
+      await completeAuthSession(await googleLogin(response.credential, selectedRole));
+    } catch (exception) {
+      setError(getUserFriendlyError(exception, "Google sign-in failed."));
+    } finally {
+      setGoogleSubmitting(false);
+    }
   }
 
   async function reverseGeocode(latitude: string, longitude: string): Promise<ReverseGeocodeResult> {
@@ -1446,17 +1690,7 @@ export function AuthPage({ mode }: { mode: "login" | "register" | "forgot" }) {
         session = await login(result.data.email, result.data.password);
       }
 
-      if (selectedRole && session.role !== selectedRole) {
-        logout();
-        setError(`This email is registered as a ${session.role.toLowerCase()} account. Please use the correct workspace.`);
-        return;
-      }
-
-      if (session.role === "PROVIDER") {
-        navigate("/provider");
-      } else {
-        navigate(returnTo);
-      }
+      await completeAuthSession(session);
     } catch (exception) {
       setError(getUserFriendlyError(
         exception,
@@ -1496,6 +1730,29 @@ export function AuthPage({ mode }: { mode: "login" | "register" | "forgot" }) {
               <div className="auth-actions-bar">
                 <button type="button" className="text-link" onClick={goBackFromForgot}>Go back</button>
               </div>
+            )}
+            {selectedRole && mode !== "forgot" && registrationStep === "details" && (
+              <>
+                <div className="google-auth-panel">
+                  {googleClientId ? (
+                    <>
+                      <GoogleLogin
+                        onSuccess={handleGoogleSuccess}
+                        onError={() => setError("Google sign-in was cancelled or failed.")}
+                        theme="filled_black"
+                        shape="rectangular"
+                        size="large"
+                        width="320"
+                        text={formMode === "register" ? "signup_with" : "signin_with"}
+                      />
+                      {googleSubmitting && <span className="form-helper">Completing Google sign-in...</span>}
+                    </>
+                  ) : (
+                    <span className="form-helper">Google sign-in is not configured for this app.</span>
+                  )}
+                </div>
+                <div className="google-auth-divider">Or</div>
+              </>
             )}
             {selectedRole && mode !== "forgot" && (
               <div className="auth-actions-bar">
@@ -1668,121 +1925,363 @@ function FormField({ name, error, children }: { name: string; error?: string; ch
 
 export function CustomerDashboard() {
   const [bookingTickets, setBookingTickets] = useState<BookingTicket[]>([]);
-  const activeBookings = bookingTickets.filter((item) => item.status === "ASSIGNED" || item.status === "BOOKED");
+  const [customerMessage, setCustomerMessage] = useState("");
+  const [activeSection, setActiveSection] = useState<"overview" | "bookings" | "tracking" | "verify" | "feedback">("overview");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [expandedTickets, setExpandedTickets] = useState<Set<string>>(new Set());
+
+  const activeBookings = bookingTickets.filter((t) => ["ASSIGNED", "BOOKED", "IN_PROGRESS"].includes(t.status));
+  const pendingOtpTickets = bookingTickets.filter((t) => t.status === "COMPLETION_OTP_PENDING");
+  const completedTickets = bookingTickets.filter((t) => t.status === "COMPLETED");
   const nextTrip = activeBookings[0] ?? bookingTickets[0];
 
   async function loadCustomerWorkspace() {
-    const bookingTicketData = await api.get<BookingTicket[]>("/tickets").catch(() => []);
-    setBookingTickets(bookingTicketData);
+    const data = await api.get<BookingTicket[]>("/tickets").catch(() => []);
+    setBookingTickets(data);
   }
 
   useEffect(() => { void loadCustomerWorkspace(); }, []);
 
-  return (
-    <DashboardShell title="Customer workspace" role="CUSTOMER">
-      <section className="customer-workspace">
-        <div className="customer-overview">
-          <div className="customer-overview-copy">
-            <span className="eyebrow"><TicketCheck size={16} />Trip command center</span>
+  async function verifyTicketCompletion(event: FormEvent<HTMLFormElement>, ticketId: string) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    try {
+      await api.post<BookingTicket>(`/tickets/${ticketId}/verify-completion`, { otp: form.get("otp") });
+      setCustomerMessage("Journey completion verified.");
+      await loadCustomerWorkspace();
+    } catch (exception) {
+      setCustomerMessage(exception instanceof Error ? exception.message : "OTP verification failed.");
+    }
+  }
+
+  async function submitTicketFeedback(event: FormEvent<HTMLFormElement>, ticketId: string) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    try {
+      await api.post("/customer/feedback", {
+        ticketId,
+        packageRating: Number(form.get("packageRating")),
+        providerRating: Number(form.get("providerRating")),
+        supportRating: Number(form.get("supportRating")),
+        comment: form.get("comment")
+      });
+      setCustomerMessage("Feedback submitted. Thank you!");
+      event.currentTarget.reset();
+    } catch (exception) {
+      setCustomerMessage(exception instanceof Error ? exception.message : "Feedback submit failed.");
+    }
+  }
+
+  function toggleTicket(id: string) {
+    setExpandedTickets((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  const customerSections = [
+    { id: "overview"  as const, label: "Overview",      desc: "Your next trip at a glance.",          badge: 0,                        icon: <LayoutDashboard size={18} /> },
+    { id: "bookings"  as const, label: "My Bookings",   desc: "All your confirmed tickets.",          badge: bookingTickets.length,    icon: <TicketCheck size={18} /> },
+    { id: "tracking"  as const, label: "Track Journey", desc: "Live status and GPS for active trips.", badge: activeBookings.length,    icon: <MapPin size={18} /> },
+    { id: "verify"    as const, label: "Verify Trip",   desc: "Enter OTP to complete your journey.",  badge: pendingOtpTickets.length, icon: <ShieldCheck size={18} /> },
+    { id: "feedback"  as const, label: "Rate & Review", desc: "Share your trip experience.",          badge: completedTickets.length,  icon: <Star size={18} /> },
+  ];
+  const currentSection = customerSections.find((s) => s.id === activeSection) ?? customerSections[0];
+
+  function renderOverview() {
+    return (
+      <div className="cust-section-view">
+        <div className="cust-next-trip-card">
+          <div className="cust-next-trip-copy">
+            <span className="eyebrow"><TicketCheck size={15} />Trip command center</span>
             <h2>{nextTrip ? `Next pickup for ${nextTrip.destination}` : "Plan your next CarHub trip"}</h2>
-            <p>{nextTrip ? `${nextTrip.packageName} is ${nextTrip.status.toLowerCase().replace("_", " ")} with pickup from ${nextTrip.pickupLocation ?? "your selected location"}.` : "Your bookings, provider details, pickup schedule, and vehicle information will appear here after checkout."}</p>
+            <p className="muted">{nextTrip
+              ? `${nextTrip.packageName} is ${nextTrip.status.toLowerCase().replace(/_/g, " ")} — pickup from ${nextTrip.pickupLocation ?? "your selected location"}.`
+              : "Your bookings, provider details, pickup schedule, and vehicle information will appear here after checkout."}</p>
           </div>
-          <div className="customer-overview-card">
+          <div className="cust-next-trip-meta">
             <span>Next pickup</span>
             <strong>{nextTrip?.pickupDate ?? "Not scheduled"}</strong>
-            <small>{nextTrip?.pickupTime ? `${nextTrip.pickupTime} from ${nextTrip.pickupLocation ?? "pickup point"}` : "Book a package to generate a travel ticket."}</small>
+            <small>{nextTrip?.pickupTime ? `${nextTrip.pickupTime} · ${nextTrip.pickupLocation ?? "pickup point"}` : "Book a package to generate a travel ticket."}</small>
           </div>
         </div>
-
-        <div className="customer-grid">
-          <div className="ops-panel customer-bookings-panel">
-            <div className="panel-title-row">
-              <div>
-                <h3>Booked tickets</h3>
-                <p className="muted">Provider, pickup, route, and vehicle details in one place.</p>
-              </div>
-              <Link className="outline-button" to="/packages">New trip<ArrowRight size={16} /></Link>
+        <div className="cust-stats-row">
+          <div className="cust-stat-card">
+            <span>Total bookings</span>
+            <strong>{bookingTickets.length}</strong>
+          </div>
+          <div className="cust-stat-card accent-blue">
+            <span>Active trips</span>
+            <strong>{activeBookings.length}</strong>
+          </div>
+          <div className="cust-stat-card accent-green">
+            <span>Completed</span>
+            <strong>{completedTickets.length}</strong>
+          </div>
+          {pendingOtpTickets.length > 0 && (
+            <div className="cust-stat-card accent-red">
+              <span>Needs verification</span>
+              <strong>{pendingOtpTickets.length}</strong>
             </div>
-            {bookingTickets.length === 0 && (
-              <div className="customer-empty-state">
-                <TicketCheck size={30} />
-                <strong>No confirmed bookings yet.</strong>
-                <p className="muted">Explore packages and complete checkout to see tickets here.</p>
-              </div>
-            )}
-            <div className="customer-ticket-list">
-              {bookingTickets.map((ticket) => (
-                <article className="customer-ticket-card" key={ticket.id}>
-                  <div className="ticket-card-main">
-                    <div>
-                      <img className="ticket-card-logo" src="/carhub-logo.png" alt="CarHub" />
-                      <span className={`status-pill ${ticket.status.toLowerCase()}`}>{ticket.status.replace("_", " ")}</span>
-                      <h4>{ticket.packageName}</h4>
-                      <p><MapPin size={15} />{ticket.destination}</p>
-                    </div>
-                    <strong>{ticket.ticketNumber}</strong>
-                  </div>
+          )}
+        </div>
+        {bookingTickets.length === 0 && (
+          <div className="customer-empty-state">
+            <TicketCheck size={30} />
+            <strong>No confirmed bookings yet.</strong>
+            <p className="muted">Explore packages and complete checkout to see tickets here.</p>
+            <Link className="primary-button" to="/packages">Explore packages<ArrowRight size={16} /></Link>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  function renderBookings() {
+    if (bookingTickets.length === 0) {
+      return (
+        <div className="customer-empty-state">
+          <TicketCheck size={30} />
+          <strong>No confirmed bookings yet.</strong>
+          <p className="muted">Explore packages and complete checkout to see your tickets here.</p>
+          <Link className="primary-button" to="/packages">Explore packages<ArrowRight size={16} /></Link>
+        </div>
+      );
+    }
+    return (
+      <div className="cust-ticket-list">
+        {bookingTickets.map((ticket) => {
+          const expanded = expandedTickets.has(ticket.id);
+          return (
+            <div className="cust-ticket-accordion" key={ticket.id}>
+              <button className="cust-ticket-row" type="button" onClick={() => toggleTicket(ticket.id)} aria-expanded={expanded}>
+                <span className={`status-pill ${ticket.status.toLowerCase()}`}>{ticket.status.replace(/_/g, " ")}</span>
+                <div className="cust-ticket-row-info">
+                  <strong>{ticket.packageName}</strong>
+                  <span><MapPin size={13} />{ticket.destination}</span>
+                </div>
+                <span className="cust-ticket-row-meta">
+                  <span><CalendarDays size={13} />{ticket.pickupDate ?? "Date pending"}</span>
+                  <span className="cust-ticket-num">{ticket.ticketNumber}</span>
+                </span>
+                {expanded ? <ChevronDown size={17} className="cust-chevron" /> : <ChevronRight size={17} className="cust-chevron" />}
+              </button>
+              {expanded && (
+                <div className="cust-ticket-detail">
                   <div className="ticket-detail-grid">
-                    <div className="ticket-detail-item">
-                      <span><CalendarDays size={15} />Pickup date</span>
-                      <strong>{ticket.pickupDate ?? "Date pending"}</strong>
-                    </div>
-                    <div className="ticket-detail-item">
-                      <span><Clock3 size={15} />Pickup time</span>
-                      <strong>{ticket.pickupTime ?? "Time pending"}</strong>
-                    </div>
-                    <div className="ticket-detail-item">
-                      <span><MapPin size={15} />Pickup</span>
-                      <strong>{ticket.pickupLocation ?? "Pickup point pending"}</strong>
-                    </div>
-                    <div className="ticket-detail-item">
-                      <span><Users size={15} />Travellers</span>
-                      <strong>{ticket.travellersCount}</strong>
-                    </div>
-                    <div className="ticket-detail-item">
-                      <span><ClipboardCheck size={15} />Car type</span>
-                      <strong>{ticket.carType.replace("_", " ").toLowerCase()}</strong>
-                    </div>
-                    <div className="ticket-detail-item">
-                      <span><MapPin size={15} />Route</span>
-                      <strong>{ticket.route}</strong>
-                    </div>
+                    <div className="ticket-detail-item"><span><Clock3 size={14} />Pickup time</span><strong>{ticket.pickupTime ?? "Pending"}</strong></div>
+                    <div className="ticket-detail-item"><span><MapPin size={14} />Pickup point</span><strong>{ticket.pickupLocation ?? "Pending"}</strong></div>
+                    <div className="ticket-detail-item"><span><Users size={14} />Travellers</span><strong>{ticket.travellersCount}</strong></div>
+                    <div className="ticket-detail-item"><span><ClipboardCheck size={14} />Car type</span><strong>{ticket.carType.replace("_", " ").toLowerCase()}</strong></div>
+                    <div className="ticket-detail-item"><span><MapPin size={14} />Route</span><strong>{ticket.route}</strong></div>
+                    <div className="ticket-detail-item"><span><ShieldCheck size={14} />Provider</span><strong>{ticket.providerBusinessName}</strong></div>
+                    <div className="ticket-detail-item"><span><Headphones size={14} />Contact</span><strong>{ticket.providerContactNumber}</strong></div>
+                    <div className="ticket-detail-item"><span><CarFront size={14} />Vehicle</span><strong>{ticket.carDetails || [ticket.carModel, ticket.carNumber, ticket.carColor].filter(Boolean).join(" · ") || "Pending"}</strong></div>
                   </div>
-                  <div className="ticket-provider-row">
-                    <div className="ticket-detail-item">
-                      <span><ShieldCheck size={15} />Provider</span>
-                      <strong>{ticket.providerBusinessName}</strong>
-                    </div>
-                    <div className="ticket-detail-item">
-                      <span><Headphones size={15} />Contact</span>
-                      <strong>{ticket.providerContactNumber}</strong>
-                    </div>
-                  </div>
-                  <div className="ticket-vehicle-line">
-                    <div>
-                      <span>Vehicle</span>
-                      <strong>{ticket.carDetails || [ticket.carModel, ticket.carNumber, ticket.carColor].filter(Boolean).join(" - ") || "Vehicle details pending"}</strong>
-                    </div>
-                    {ticket.specialRequests && (
-                      <div>
-                        <span>Special request</span>
-                        <strong>{ticket.specialRequests}</strong>
-                      </div>
-                    )}
-                  </div>
-                  <div className="ticket-card-actions">
+                  {ticket.specialRequests && (
+                    <p className="cust-special-req"><strong>Special request:</strong> {ticket.specialRequests}</p>
+                  )}
+                  <div className="cust-ticket-actions">
                     <button className="outline-button" type="button" onClick={() => void downloadTicketPdf(ticket.id, ticket.ticketNumber)}>
-                      <Download size={16} />
-                      PDF
+                      <Download size={15} />Download PDF
                     </button>
                   </div>
-                </article>
-              ))}
+                </div>
+              )}
             </div>
-          </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  function renderTracking() {
+    const trackableTickets = bookingTickets.filter((t) => t.status !== "COMPLETED");
+    if (trackableTickets.length === 0) {
+      return (
+        <div className="customer-empty-state">
+          <MapPin size={30} />
+          <strong>No active trips to track.</strong>
+          <p className="muted">Journey tracking will appear here once a trip is assigned and started.</p>
         </div>
-      </section>
-    </DashboardShell>
+      );
+    }
+    return (
+      <div className="cust-section-view">
+        {trackableTickets.map((ticket) => (
+          <div className="ops-panel cust-tracking-card" key={ticket.id}>
+            <div className="cust-card-header">
+              <div>
+                <h4>{ticket.packageName}</h4>
+                <p className="muted"><MapPin size={14} />{ticket.destination}</p>
+              </div>
+              <span className={`status-pill ${ticket.status.toLowerCase()}`}>{ticket.status.replace(/_/g, " ")}</span>
+            </div>
+            <div className="ticket-detail-grid">
+              <div className="ticket-detail-item"><span><CalendarDays size={14} />Pickup date</span><strong>{ticket.pickupDate ?? "Pending"}</strong></div>
+              <div className="ticket-detail-item"><span><Clock3 size={14} />Pickup time</span><strong>{ticket.pickupTime ?? "Pending"}</strong></div>
+              <div className="ticket-detail-item"><span><ShieldCheck size={14} />Provider</span><strong>{ticket.providerBusinessName}</strong></div>
+              <div className="ticket-detail-item"><span><Headphones size={14} />Contact</span><strong>{ticket.providerContactNumber}</strong></div>
+            </div>
+            {ticket.providerLatitude && ticket.providerLongitude
+              ? <a className="text-link cust-gps-link" href={`https://www.google.com/maps?q=${ticket.providerLatitude},${ticket.providerLongitude}`} target="_blank" rel="noreferrer"><MapPin size={15} />Open provider live location</a>
+              : <p className="muted cust-gps-pending">Provider GPS location will appear once the journey starts.</p>}
+            {ticket.providerLocationUpdatedAt && <small className="muted">Last updated {new Date(ticket.providerLocationUpdatedAt).toLocaleString()}</small>}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  function renderVerify() {
+    if (pendingOtpTickets.length === 0) {
+      return (
+        <div className="customer-empty-state">
+          <ShieldCheck size={30} />
+          <strong>No trips awaiting verification.</strong>
+          <p className="muted">When your provider completes a journey, you'll enter an OTP here to confirm completion.</p>
+        </div>
+      );
+    }
+    return (
+      <div className="cust-section-view">
+        {pendingOtpTickets.map((ticket) => (
+          <div className="ops-panel cust-verify-card" key={ticket.id}>
+            <div className="cust-card-header">
+              <div>
+                <h4>{ticket.packageName}</h4>
+                <p className="muted"><MapPin size={14} />{ticket.destination}</p>
+              </div>
+              <span className="status-pill completion_otp_pending">OTP PENDING</span>
+            </div>
+            <p className="muted cust-verify-hint">Your provider has completed the journey. Enter the OTP they shared with you to confirm trip completion.</p>
+            <form className="cust-otp-form" onSubmit={(e) => verifyTicketCompletion(e, ticket.id)}>
+              <input name="otp" placeholder="Enter completion OTP" inputMode="numeric" maxLength={6} required />
+              <button className="primary-button" type="submit"><ShieldCheck size={16} />Verify &amp; Complete</button>
+            </form>
+            {customerMessage && <p className="journey-message">{customerMessage}</p>}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  function renderFeedback() {
+    if (completedTickets.length === 0) {
+      return (
+        <div className="customer-empty-state">
+          <Star size={30} />
+          <strong>No completed trips yet.</strong>
+          <p className="muted">After a journey is verified as complete, you can rate your experience here.</p>
+        </div>
+      );
+    }
+    return (
+      <div className="cust-section-view">
+        {completedTickets.map((ticket) => (
+          <div className="ops-panel cust-feedback-card" key={ticket.id}>
+            <div className="cust-card-header">
+              <div>
+                <h4>{ticket.packageName}</h4>
+                <p className="muted"><MapPin size={14} />{ticket.destination}</p>
+              </div>
+              <span className="status-pill completed">COMPLETED</span>
+            </div>
+            <form className="cust-feedback-form" onSubmit={(e) => submitTicketFeedback(e, ticket.id)}>
+              <div className="cust-ratings-row">
+                <label className="cust-rating-label">
+                  <span>Package</span>
+                  <select name="packageRating" defaultValue="5">
+                    {[5, 4, 3, 2, 1].map((r) => <option key={r} value={r}>{r} / 5</option>)}
+                  </select>
+                </label>
+                <label className="cust-rating-label">
+                  <span>Provider</span>
+                  <select name="providerRating" defaultValue="5">
+                    {[5, 4, 3, 2, 1].map((r) => <option key={r} value={r}>{r} / 5</option>)}
+                  </select>
+                </label>
+                <label className="cust-rating-label">
+                  <span>Support</span>
+                  <select name="supportRating" defaultValue="5">
+                    {[5, 4, 3, 2, 1].map((r) => <option key={r} value={r}>{r} / 5</option>)}
+                  </select>
+                </label>
+              </div>
+              <textarea name="comment" placeholder="Share your journey experience…" rows={3} />
+              <button className="primary-button" type="submit"><Star size={16} />Submit feedback</button>
+            </form>
+            {customerMessage && <p className="journey-message">{customerMessage}</p>}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="page customer-workspace-page">
+      <aside className={`customer-sidebar${sidebarOpen ? " open" : ""}`} aria-label="Customer sections">
+        <div className="customer-sidebar-head">
+          <div>
+            <strong>My Dashboard</strong>
+            <small>Trip management</small>
+          </div>
+          <button className="icon-button customer-sidebar-close" type="button" onClick={() => setSidebarOpen(false)} aria-label="Close menu">
+            <X size={18} />
+          </button>
+        </div>
+        <nav className="customer-nav">
+          {customerSections.map((section) => (
+            <button
+              key={section.id}
+              className={section.id === activeSection ? "active" : ""}
+              type="button"
+              onClick={() => { setActiveSection(section.id); setSidebarOpen(false); }}
+              aria-current={section.id === activeSection ? "page" : undefined}
+            >
+              <span className="customer-nav-icon">{section.icon}</span>
+              <span><strong>{section.label}</strong></span>
+              {section.badge > 0 && <b>{section.badge}</b>}
+            </button>
+          ))}
+        </nav>
+      </aside>
+
+      {sidebarOpen && (
+        <button className="customer-sidebar-scrim" type="button" aria-label="Close menu" onClick={() => setSidebarOpen(false)} />
+      )}
+
+      <main className="customer-main">
+        <div className="customer-mobilebar">
+          <button className="icon-button" type="button" onClick={() => setSidebarOpen(true)} aria-label="Open menu">
+            <Menu size={19} />
+          </button>
+          <strong>{currentSection.label}</strong>
+        </div>
+
+        <div className="customer-workspace-heading">
+          <div>
+            <span className="eyebrow">CUSTOMER</span>
+            <h1>{currentSection.label}</h1>
+            <p className="muted">{currentSection.desc}</p>
+          </div>
+          <Link className="primary-button" to="/packages">Explore packages<ArrowRight size={17} /></Link>
+        </div>
+
+        {customerMessage && activeSection !== "verify" && activeSection !== "feedback" && (
+          <div className="notice-panel">{customerMessage}</div>
+        )}
+
+        <div className="customer-section-view">
+          {activeSection === "overview"  ? renderOverview()
+            : activeSection === "bookings"  ? renderBookings()
+            : activeSection === "tracking"  ? renderTracking()
+            : activeSection === "verify"    ? renderVerify()
+            : renderFeedback()}
+        </div>
+      </main>
+    </div>
   );
 }
 
@@ -1792,6 +2291,7 @@ export function ProviderDashboard() {
   const [bookingTickets, setBookingTickets] = useState<ProviderTicket[]>([]);
   const [packages, setPackages] = useState<ApiPackage[]>([]);
   const [message, setMessage] = useState("");
+  const [completionOtps, setCompletionOtps] = useState<Record<string, string>>({});
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [submittingPackage, setSubmittingPackage] = useState(false);
   const [selectedPackageDestination, setSelectedPackageDestination] = useState("");
@@ -1812,6 +2312,43 @@ export function ProviderDashboard() {
   }
 
   useEffect(() => { void loadProviderWorkspace(); }, []);
+
+  async function startTicketJourney(ticketId: string) {
+    try {
+      await api.post<ProviderTicket>(`/provider/tickets/${ticketId}/start`, {});
+      setMessage("Journey started.");
+      await updateTicketLocation(ticketId);
+      await loadProviderWorkspace();
+    } catch (exception) {
+      setMessage(exception instanceof Error ? exception.message : "Journey start failed.");
+    }
+  }
+
+  async function updateTicketLocation(ticketId: string) {
+    if (!navigator.geolocation) {
+      setMessage("GPS is not supported in this browser.");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(async (position) => {
+      await api.post<ProviderTicket>(`/provider/tickets/${ticketId}/location`, {
+        latitude: String(position.coords.latitude),
+        longitude: String(position.coords.longitude)
+      });
+      setMessage("GPS location updated.");
+      await loadProviderWorkspace();
+    }, () => setMessage("Location permission denied. Allow GPS access to track this journey."));
+  }
+
+  async function requestCompletionOtp(ticketId: string) {
+    try {
+      const response = await api.post<{ otp: string; message: string }>(`/provider/tickets/${ticketId}/completion-otp`, {});
+      setCompletionOtps((current) => ({ ...current, [ticketId]: response.otp }));
+      setMessage(response.message || "Completion OTP generated.");
+      await loadProviderWorkspace();
+    } catch (exception) {
+      setMessage(exception instanceof Error ? exception.message : "Completion OTP request failed.");
+    }
+  }
 
   async function submitPackage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1964,6 +2501,13 @@ export function ProviderDashboard() {
             <small>Pickup: {ticket.pickupLocation ?? "Pickup point pending"}</small>
             <small>Vehicle: {[ticket.carNumber, ticket.carModel].filter(Boolean).join(" - ") || "Vehicle details pending"}</small>
             {ticket.specialRequests && <small>Notes: {ticket.specialRequests}</small>}
+            <div className="journey-actions">
+              {ticket.status === "ASSIGNED" || ticket.status === "BOOKED" ? <button className="outline-button" type="button" onClick={() => void startTicketJourney(ticket.id)}>Start journey</button> : null}
+              {ticket.status === "IN_PROGRESS" && <button className="outline-button" type="button" onClick={() => void updateTicketLocation(ticket.id)}>Update GPS</button>}
+              {ticket.status === "IN_PROGRESS" && <button className="primary-button" type="button" onClick={() => void requestCompletionOtp(ticket.id)}>Completion OTP</button>}
+              {completionOtps[ticket.id] && <strong className="journey-otp">OTP {completionOtps[ticket.id]}</strong>}
+              {ticket.providerLatitude && ticket.providerLongitude && <a className="text-link" href={`https://www.google.com/maps?q=${ticket.providerLatitude},${ticket.providerLongitude}`} target="_blank" rel="noreferrer">Map</a>}
+            </div>
           </div>
         ))}
       </div>

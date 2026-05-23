@@ -66,7 +66,7 @@ public class TravelPackage {
     @Column(name = "image_url")
     private String imageUrl;
 
-    @Column(name = "video_url")
+    @Column(name = "video_url", columnDefinition = "TEXT")
     private String videoUrl;
 
     @Column(name = "car_photo_url")
@@ -139,6 +139,18 @@ public class TravelPackage {
 
     @Column(name = "reposted_from_id")
     private UUID repostedFromId;
+
+    @Column(name = "region")
+    private String region;
+
+    @Column(name = "route_order", columnDefinition = "TEXT")
+    private String routeOrder;
+
+    @Column(name = "total_distance_km")
+    private Integer totalDistanceKm;
+
+    @Column(name = "sub_places", columnDefinition = "TEXT")
+    private String subPlaces;
 
     @Column(name = "submitted_at")
     private Instant submittedAt;
@@ -229,6 +241,14 @@ public class TravelPackage {
     public void setRcDocumentUrl(String rcDocumentUrl) { this.rcDocumentUrl = rcDocumentUrl; }
     public UUID getRepostedFromId() { return repostedFromId; }
     public void setRepostedFromId(UUID repostedFromId) { this.repostedFromId = repostedFromId; }
+    public String getRegion() { return region; }
+    public void setRegion(String region) { this.region = region; }
+    public String getRouteOrder() { return routeOrder; }
+    public void setRouteOrder(String routeOrder) { this.routeOrder = routeOrder; }
+    public Integer getTotalDistanceKm() { return totalDistanceKm; }
+    public void setTotalDistanceKm(Integer totalDistanceKm) { this.totalDistanceKm = totalDistanceKm; }
+    public String getSubPlaces() { return subPlaces; }
+    public void setSubPlaces(String subPlaces) { this.subPlaces = subPlaces; }
     public Instant getSubmittedAt() { return submittedAt; }
     public void setSubmittedAt(Instant submittedAt) { this.submittedAt = submittedAt; }
     public Instant getReviewedAt() { return reviewedAt; }

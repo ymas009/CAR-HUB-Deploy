@@ -13,7 +13,10 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: frontend/package-lock.json
+          cache-dependency-path: |
+            frontend/package-lock.json
+            provider-frontend/package-lock.json
+            admin-frontend/package-lock.json
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -21,6 +24,12 @@ jobs:
           cache: maven
       - name: Frontend build
         working-directory: frontend
+        run: npm ci && npm run build
+      - name: Provider frontend build
+        working-directory: provider-frontend
+        run: npm ci && npm run build
+      - name: Admin frontend build
+        working-directory: admin-frontend
         run: npm ci && npm run build
       - name: Backend tests
         working-directory: backend

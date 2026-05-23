@@ -32,6 +32,12 @@ public record TicketDTO(
         String customerEmail,
         String customerMobile,
         String travellersDetails,
+        String providerLatitude,
+        String providerLongitude,
+        Instant providerLocationUpdatedAt,
+        Instant journeyStartedAt,
+        Instant completionOtpExpiresAt,
+        Instant completedAt,
         Instant createdAt
 ) {
 }

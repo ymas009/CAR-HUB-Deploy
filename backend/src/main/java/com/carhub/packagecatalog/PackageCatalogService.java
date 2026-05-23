@@ -56,6 +56,13 @@ public class PackageCatalogService {
     }
 
     @Transactional(readOnly = true)
+    public List<TravelPackageResponse> publicPackagesByRegion(String region) {
+        return travelPackageRepository.findPubliclyBookableByRegion(region).stream()
+                .map(pack -> toResponse(pack, false))
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
     public TravelPackageResponse get(UUID id) {
         return travelPackageRepository.findPubliclyBookableById(id).map(pack -> toResponse(pack, false))
                 .orElseThrow(() -> new BusinessRuleException("PACKAGE_NOT_FOUND", "Package not found."));
@@ -198,9 +205,34 @@ public class PackageCatalogService {
         if (pack.getSourceProvider() == null || !pack.getSourceProvider().getUser().getId().equals(providerUserId)) {
             throw new BusinessRuleException("FORBIDDEN", "Provider cannot edit this package.");
         }
+        if ("AVAILABLE".equals(pack.getAvailabilityStatus()) || "CANCELLATION_REQUESTED".equals(pack.getAvailabilityStatus())) {
+            throw new BusinessRuleException("PACKAGE_LIVE_NO_EDIT", "Live packages cannot be edited. Submit a cancellation request to admin instead.");
+        }
         applyPackageDetails(pack, request);
         pack.touch();
         return toResponse(travelPackageRepository.save(pack), true);
+    }
+
+    @Transactional
+    public TravelPackageResponse providerCancelRequest(UUID providerUserId, UUID packageId, String reason) {
+        TravelPackage pack = travelPackageRepository.findById(packageId)
+                .orElseThrow(() -> new BusinessRuleException("PACKAGE_NOT_FOUND", "Package not found."));
+        if (pack.getSourceProvider() == null || !pack.getSourceProvider().getUser().getId().equals(providerUserId)) {
+            throw new BusinessRuleException("FORBIDDEN", "You can only request cancellation for your own packages.");
+        }
+        if (!"AVAILABLE".equals(pack.getAvailabilityStatus())) {
+            throw new BusinessRuleException("PACKAGE_NOT_LIVE", "Only live packages can have a cancellation request submitted.");
+        }
+        String note = (reason != null && !reason.isBlank())
+                ? "CANCEL REQUEST: " + reason.trim()
+                : "CANCEL REQUEST: Provider requested emergency cancellation.";
+        pack.setAvailabilityStatus("CANCELLATION_REQUESTED");
+        pack.setReviewNotes(note);
+        pack.touch();
+        TravelPackage saved = travelPackageRepository.save(pack);
+        auditService.recordCatalogAction(providerUserId, "PROVIDER", "CANCELLATION_REQUESTED", saved.getId(),
+                "AVAILABLE", "CANCELLATION_REQUESTED", note);
+        return toResponse(saved, true);
     }
 
     @Transactional
@@ -212,10 +244,16 @@ public class PackageCatalogService {
             throw new BusinessRuleException("BOOKED_PACKAGE_LOCKED",
                     "Booked packages cannot be made live again. Ask the provider to submit a new package for approval.");
         }
+        applyAdminCatalogFields(pack, request);
         pack.setAvailabilityStatus(request.availabilityStatus());
         pack.setFeatured(request.featured() && "AVAILABLE".equals(request.availabilityStatus()));
         pack.setReviewNotes(request.reviewNotes());
-        pack.setVideoUrl(normalizeVideoUrl(request.videoUrl()));
+        if (request.imageUrl() != null && !request.imageUrl().isBlank()) {
+            pack.setImageUrl(request.imageUrl().trim());
+        }
+        if (request.videoUrl() != null && !request.videoUrl().isBlank()) {
+            pack.setVideoUrl(request.videoUrl().trim());
+        }
         pack.setCarPhotoUrl(request.carPhotoUrl());
         pack.setCarNumber(request.carNumber());
         pack.setCarModel(request.carModel());
@@ -257,7 +295,11 @@ public class PackageCatalogService {
                 pack.getRcNumber(),
                 pack.getRcDocumentUrl(),
                 pack.getRepostedFromId(),
-                completedCount);
+                completedCount,
+                pack.getRegion(),
+                pack.getRouteOrder(),
+                pack.getTotalDistanceKm(),
+                pack.getSubPlaces());
     }
 
     private Map<UUID, Long> resolveCompletedCounts(List<TravelPackage> packages) {
@@ -323,6 +365,10 @@ public class PackageCatalogService {
         repost.setPickupStartTime(original.getPickupStartTime());
         repost.setPickupEndTime(original.getPickupEndTime());
         repost.setProviderNotes(original.getProviderNotes());
+        repost.setRegion(original.getRegion());
+        repost.setRouteOrder(original.getRouteOrder());
+        repost.setTotalDistanceKm(original.getTotalDistanceKm());
+        repost.setSubPlaces(original.getSubPlaces());
         repost.setFeatured(false);
         repost.setAvailabilityStatus("PENDING_ADMIN_REVIEW");
         repost.setSourceProvider(provider);
@@ -337,6 +383,45 @@ public class PackageCatalogService {
         long completedCount = travelPackageRepository
                 .countBySourceProvider_User_IdAndAvailabilityStatus(providerUserId, "BOOKED");
         return toResponse(saved, true, completedCount);
+    }
+
+    private void applyAdminCatalogFields(TravelPackage pack, PackageAvailabilityUpdateRequest request) {
+        if (request.title() != null && !request.title().isBlank()) {
+            pack.setTitle(request.title().trim());
+        }
+        if (request.destination() != null && !request.destination().isBlank()) {
+            pack.setDestination(request.destination().trim());
+        }
+        if (request.category() != null && !request.category().isBlank()) {
+            pack.setCategory(request.category().trim());
+        }
+        if (request.summary() != null && !request.summary().isBlank()) {
+            pack.setSummary(request.summary().trim());
+        }
+        if (request.description() != null && !request.description().isBlank()) {
+            pack.setDescription(request.description().trim());
+        }
+        if (request.startingPrice() != null) {
+            pack.setStartingPrice(request.startingPrice());
+        }
+        if (request.durationDays() != null) {
+            pack.setDurationDays(request.durationDays());
+        }
+        if (request.localPlaces() != null && !request.localPlaces().isBlank()) {
+            pack.setLocalPlaces(request.localPlaces().trim());
+        }
+        if (request.region() != null && !request.region().isBlank()) {
+            pack.setRegion(request.region().trim());
+        }
+        if (request.routeOrder() != null && !request.routeOrder().isBlank()) {
+            pack.setRouteOrder(request.routeOrder().trim());
+        }
+        if (request.totalDistanceKm() != null) {
+            pack.setTotalDistanceKm(request.totalDistanceKm());
+        }
+        if (request.subPlaces() != null && !request.subPlaces().isBlank()) {
+            pack.setSubPlaces(request.subPlaces().trim());
+        }
     }
 
     private void recalculateProviderPayout(TravelPackage pack) {

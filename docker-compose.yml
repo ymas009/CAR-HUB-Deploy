@@ -24,9 +24,12 @@ services:
       CARHUB_DB_USER: carhub
       CARHUB_DB_PASSWORD: carhub
       CARHUB_JWT_SECRET: replace-with-a-long-random-secret-before-production
-      CARHUB_CORS_ALLOWED_ORIGINS: http://localhost:5173,http://localhost:5174,http://localhost:8088,http://localhost:8089
+      CARHUB_CORS_ALLOWED_ORIGINS: http://localhost:5173,http://localhost:5174,http://localhost:5175,http://localhost:8088,http://localhost:8089,http://localhost:8090
+      CARHUB_GOOGLE_CLIENT_ID: ${CARHUB_GOOGLE_CLIENT_ID:-}
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-}
     ports:
-      - "8080:8080"
+      - "8081:8081"
     depends_on:
       postgres:
         condition: service_healthy
@@ -34,14 +37,32 @@ services:
   frontend:
     build:
       context: ./frontend
+      args:
+        VITE_API_BASE_URL: http://localhost:8081/api/v1
+        VITE_PROVIDER_APP_URL: http://localhost:8090
+        VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
     ports:
       - "8088:80"
+    depends_on:
+      - backend
+
+  provider-frontend:
+    build:
+      context: ./provider-frontend
+      args:
+        VITE_API_BASE_URL: http://localhost:8081/api/v1
+        VITE_CUSTOMER_APP_URL: http://localhost:8088
+        VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
+    ports:
+      - "8090:80"
     depends_on:
       - backend
 
   admin-frontend:
     build:
       context: ./admin-frontend
+      args:
+        VITE_API_BASE_URL: http://localhost:8081/api/v1
     ports:
       - "8089:80"
     depends_on:

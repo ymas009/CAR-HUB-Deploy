@@ -1,4 +1,4 @@
-import { FormEvent, ReactNode, useEffect, useState } from "react";
+import { Fragment, FormEvent, ReactNode, useEffect, useState } from "react";
 import { Activity, ArrowRight, BriefcaseBusiness, ClipboardList, Clock3, Database, Eye, EyeOff, FileCheck2, FileText, Gauge, LifeBuoy, LockKeyhole, Menu, PackageCheck, ShieldCheck, UsersRound, X } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { z } from "zod";
@@ -33,6 +33,16 @@ const passwordResetSchema = z.object({
 });
 
 type FieldErrors = Record<string, string>;
+
+async function fileToDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
 
 function getFieldErrors(error: z.ZodError): FieldErrors {
   return error.issues.reduce<FieldErrors>((errors, issue) => {
@@ -338,6 +348,20 @@ function nullableNumber(value: FormDataEntryValue | null) {
   return text ? Number(text) : null;
 }
 
+function suggestedDistanceFromPune(destination: string) {
+  const value = destination.toLowerCase();
+  if (/lonavala|khandala|karla/.test(value)) return 65;
+  if (/mahabaleshwar/.test(value)) return 121;
+  if (/panchgani/.test(value)) return 100;
+  if (/alibaug|alibag|mandwa/.test(value)) return 140;
+  if (/shirdi/.test(value)) return 185;
+  if (/nashik/.test(value)) return 210;
+  if (/kolad/.test(value)) return 120;
+  if (/mumbai/.test(value)) return 162;
+  if (/sinhagad/.test(value)) return 35;
+  return null;
+}
+
 type AdminSection = "overview" | "customers" | "providers" | "bookings" | "packages" | "review" | "support" | "content" | "audit";
 
 const adminSectionIds: AdminSection[] = ["overview", "customers", "providers", "bookings", "packages", "review", "support", "content", "audit"];
@@ -361,6 +385,11 @@ export function AdminDashboard() {
   const [customers, setCustomers] = useState<CustomerOverview[]>([]);
   const [message, setMessage] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [savedPackageIds, setSavedPackageIds] = useState<Set<string>>(new Set());
+  const [editingPackageIds, setEditingPackageIds] = useState<Set<string>>(new Set());
+  const [selectedPackageIdx, setSelectedPackageIdx] = useState(0);
+  const [pendingStatus, setPendingStatus] = useState<Record<string, string>>({});
+  const [filePreview, setFilePreview] = useState<Record<string, { image?: string; video?: string }>>({});
 
   async function loadAdminWorkspace() {
     const [ticketData, feedbackData, auditData, pendingPackageData, allPackageData, bookingTicketData, contentPageData, providerData, customerData] = await Promise.all([
@@ -428,22 +457,62 @@ export function AdminDashboard() {
   async function handlePackageSave(event: FormEvent<HTMLFormElement>, packageId: string) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    const imageFile = form.get("imageUrl");
+    const videoFile = form.get("videoFile");
+    const existingImageUrl = String(form.get("existingImageUrl") ?? "");
+    const existingVideoUrl = String(form.get("existingVideoUrl") ?? "");
+    const imageUrlText = String(form.get("imageUrlText") ?? "").trim();
+    const videoUrlText = String(form.get("videoUrlText") ?? "").trim();
+    let imageUrl: string | undefined;
+    let videoUrl: string | undefined;
+    // image: file upload > pasted URL > existing
+    if (imageFile instanceof File && imageFile.size > 0) {
+      imageUrl = await fileToDataUrl(imageFile);
+    } else if (imageUrlText) {
+      imageUrl = imageUrlText;
+    } else {
+      imageUrl = existingImageUrl || undefined;
+    }
+    // video: file upload > pasted URL > existing
+    if (videoFile instanceof File && videoFile.size > 0) {
+      videoUrl = await fileToDataUrl(videoFile);
+    } else if (videoUrlText) {
+      videoUrl = videoUrlText;
+    } else {
+      videoUrl = existingVideoUrl || undefined;
+    }
     try {
       await api.put<ApiPackage>(`/admin/packages/${packageId}`, {
+        title: form.get("title"),
+        destination: form.get("destination"),
+        category: form.get("category"),
+        summary: form.get("summary"),
+        description: form.get("description"),
+        startingPrice: nullableNumber(form.get("startingPrice")),
+        durationDays: nullableNumber(form.get("durationDays")),
+        imageUrl: imageUrl,
+        localPlaces: form.get("localPlaces"),
         availabilityStatus: form.get("availabilityStatus"),
         reviewNotes: form.get("reviewNotes"),
         featured: form.get("featured") === "on",
-        videoUrl: form.get("videoUrl"),
+        videoUrl: videoUrl,
         carPhotoUrl: form.get("carPhotoUrl"),
         carNumber: form.get("carNumber"),
         carModel: form.get("carModel"),
-        carColor: form.get("carColor"),
         seatsAvailable: nullableNumber(form.get("seatsAvailable")),
         distanceKm: nullableNumber(form.get("distanceKm")),
         pricePerKm: nullableNumber(form.get("pricePerKm")),
-        providerNotes: form.get("providerNotes")
+        providerNotes: form.get("providerNotes"),
+        region: form.get("region") || undefined,
+        routeOrder: form.get("routeOrder") || undefined,
+        totalDistanceKm: nullableNumber(form.get("totalDistanceKm")),
+        subPlaces: form.get("subPlaces") || undefined
       });
-      setMessage("Package availability and car details updated.");
+      setSavedPackageIds((prev) => new Set(prev).add(packageId));
+      setEditingPackageIds((prev) => { const next = new Set(prev); next.delete(packageId); return next; });
+      setPendingStatus((prev) => { const next = { ...prev }; delete next[packageId]; return next; });
+      setFilePreview((prev) => { const next = { ...prev }; delete next[packageId]; return next; });
+      setMessage("Package updated successfully.");
       await loadAdminWorkspace();
     } catch (exception) {
       setMessage(exception instanceof Error ? exception.message : "Package update failed.");
@@ -489,6 +558,16 @@ export function AdminDashboard() {
       await loadAdminWorkspace();
     } catch (exception) {
       setMessage(exception instanceof Error ? exception.message : "Customer update failed.");
+    }
+  }
+
+  async function moderateFeedback(feedbackId: string, moderationStatus: "APPROVED" | "REJECTED" | "PENDING") {
+    try {
+      await api.put<FeedbackItem>(`/admin/feedback/${feedbackId}`, { moderationStatus });
+      setMessage(`Feedback ${moderationStatus.toLowerCase()}.`);
+      await loadAdminWorkspace();
+    } catch (exception) {
+      setMessage(exception instanceof Error ? exception.message : "Feedback moderation failed.");
     }
   }
 
@@ -682,7 +761,12 @@ export function AdminDashboard() {
                 <div><span>{ticket.providerBusinessName}</span><small>{ticket.providerContactNumber}</small></div>
                 <div><span>{ticket.pickupLocation ?? "Pickup pending"}</span><small>{ticket.pickupDate} {ticket.pickupTime}</small></div>
                 <div><span>{ticket.carNumber ?? "Car pending"}</span><small>{ticket.carModel ?? ticket.carType.replace("_", " ")}</small></div>
-                <div><span className="status-chip">{statusText(ticket.status)}</span><small>{ticket.paymentReference ?? "Payment ref pending"}</small></div>
+                <div>
+                  <span className="status-chip">{statusText(ticket.status)}</span>
+                  <small>{ticket.providerLatitude && ticket.providerLongitude ? `${ticket.providerLatitude}, ${ticket.providerLongitude}` : "GPS pending"}</small>
+                  {ticket.providerLatitude && ticket.providerLongitude && <a className="text-link" href={`https://www.google.com/maps?q=${ticket.providerLatitude},${ticket.providerLongitude}`} target="_blank" rel="noreferrer">Open map</a>}
+                  {ticket.completedAt && <small>Completed {new Date(ticket.completedAt).toLocaleString()}</small>}
+                </div>
               </div>
             ))}
           </div>
@@ -701,6 +785,28 @@ export function AdminDashboard() {
       BOOKED: { label: "Booked", cls: "booked" }
     };
 
+    if (allPackages.length === 0) {
+      return (
+        <div className="ops-panel">
+          <div className="panel-title-row"><div><h3>Provider package inventory</h3></div></div>
+          <p className="muted">No packages found.</p>
+        </div>
+      );
+    }
+
+    const clampedIdx = Math.min(selectedPackageIdx, allPackages.length - 1);
+    const pack = allPackages[clampedIdx];
+    const meta = statusMeta[pack.availabilityStatus ?? ""] ?? { label: statusText(pack.availabilityStatus), cls: "neutral" };
+    const suggestedDistance = suggestedDistanceFromPune(pack.destination);
+    const isSaved = savedPackageIds.has(pack.id) && !editingPackageIds.has(pack.id);
+    const selectedStatus = pendingStatus[pack.id] ?? pack.availabilityStatus ?? "AVAILABLE";
+    const saveLabel = selectedStatus === "AVAILABLE" ? "Go Live"
+      : selectedStatus === "UNAVAILABLE" ? "Make Unavailable"
+      : "Save Changes";
+    const preview = filePreview[pack.id];
+    const previewImage = preview?.image ?? pack.imageUrl;
+    const previewVideo = preview?.video ?? pack.videoUrl;
+
     return (
       <div className="ops-panel">
         <div className="panel-title-row">
@@ -709,14 +815,57 @@ export function AdminDashboard() {
             <p className="muted">{allPackages.length} package{allPackages.length === 1 ? "" : "s"} — admin controls status, pricing, featured flag, media and notes.</p>
           </div>
         </div>
-        {allPackages.length === 0 ? <p className="muted">No packages found.</p> : (
-          <div className="pkg-card-list">
-            {allPackages.map((pack) => {
-              const meta = statusMeta[pack.availabilityStatus ?? ""] ?? { label: statusText(pack.availabilityStatus), cls: "neutral" };
+
+        <div className="pkg-workspace">
+          {/* ── Sidebar package list ── */}
+          <aside className="pkg-sidebar">
+            <p className="pkg-sidebar-label">All packages</p>
+            {allPackages.map((p, idx) => {
+              const m = statusMeta[p.availabilityStatus ?? ""] ?? { label: statusText(p.availabilityStatus), cls: "neutral" };
               return (
-                <form className={`pkg-card pkg-card--${meta.cls}`} key={pack.id} onSubmit={(event) => handlePackageSave(event, pack.id)}>
+                <button
+                  key={p.id}
+                  type="button"
+                  className={`pkg-sidebar-item${idx === clampedIdx ? " pkg-sidebar-item--active" : ""}`}
+                  onClick={() => setSelectedPackageIdx(idx)}
+                >
+                  <span className="pkg-sidebar-num">{idx + 1}</span>
+                  <span className="pkg-sidebar-info">
+                    <span className="pkg-sidebar-title">{p.title}</span>
+                    <span className="pkg-sidebar-dest">{p.destination}</span>
+                  </span>
+                  <span className={`pkg-sidebar-dot pkg-sidebar-dot--${m.cls}`} />
+                </button>
+              );
+            })}
+          </aside>
+
+          {/* ── Single package detail ── */}
+          <div className="pkg-detail-area">
+            {/* Prev / Next navigation */}
+            <div className="pkg-nav-bar">
+              <span className="pkg-nav-counter">{clampedIdx + 1} / {allPackages.length}</span>
+              <div className="pkg-nav-actions">
+                <button type="button" className="outline-button pkg-nav-btn" disabled={clampedIdx === 0} onClick={() => setSelectedPackageIdx(clampedIdx - 1)}>← Prev</button>
+                <button type="button" className="outline-button pkg-nav-btn" disabled={clampedIdx === allPackages.length - 1} onClick={() => setSelectedPackageIdx(clampedIdx + 1)}>Next →</button>
+              </div>
+            </div>
+
+            {/* Package form — identical internals, just one at a time */}
+            {(() => (
+                <form key={pack.id} className={`pkg-card pkg-card--${meta.cls}${isSaved ? " pkg-card--saved" : ""}`} onSubmit={(event) => handlePackageSave(event, pack.id)}>
 
                   {/* ── Top header row ── */}
+                  {isSaved && (
+                    <div className="pkg-saved-banner">
+                      <span className="pkg-saved-icon">✓</span>
+                      <span>Package updated successfully</span>
+                      <button type="button" className="outline-button pkg-edit-unlock-btn" onClick={() => setEditingPackageIds((prev) => new Set(prev).add(pack.id))}>Edit</button>
+                    </div>
+                  )}
+
+                  <fieldset disabled={isSaved} style={{ border: "none", margin: 0, padding: 0, minWidth: 0 }}>
+
                   <div className="pkg-card-header">
                     <div className="pkg-card-title-group">
                       <strong className="pkg-card-title">{pack.title}</strong>
@@ -729,6 +878,167 @@ export function AdminDashboard() {
                   </div>
 
                   {/* ── 3-column info body ── */}
+                  {pack.reviewNotes && (
+                    <div className={`pkg-update-note${pack.reviewNotes.startsWith("CANCEL REQUEST") ? " pkg-update-note--cancel" : ""}`}>
+                      <strong>{pack.reviewNotes.startsWith("CANCEL REQUEST") ? "Cancellation request" : "Update message"}</strong>
+                      <span>{pack.reviewNotes}</span>
+                    </div>
+                  )}
+
+                  <div className="pkg-admin-controls">
+                    <label className="pkg-field-label">
+                      Package title
+                      <input name="title" defaultValue={pack.title} aria-label={`${pack.title} title`} />
+                    </label>
+                    <label className="pkg-field-label">
+                      Destination
+                      <input name="destination" defaultValue={pack.destination} aria-label={`${pack.title} destination`} />
+                    </label>
+                    <label className="pkg-field-label">
+                      Category
+                      <input name="category" defaultValue={pack.category} aria-label={`${pack.title} category`} />
+                    </label>
+                    <label className="pkg-field-label">
+                      Distance from Pune
+                      <input name="distanceKm" type="number" min="0" step="0.1" defaultValue={pack.distanceKm ?? suggestedDistance ?? ""} placeholder={suggestedDistance ? `${suggestedDistance} km suggested` : "Enter km"} aria-label={`${pack.title} distance from Pune`} />
+                    </label>
+                    <label className="pkg-field-label">
+                      Duration days
+                      <input name="durationDays" type="number" min="1" max="30" defaultValue={pack.durationDays} aria-label={`${pack.title} duration days`} />
+                    </label>
+                    <label className="pkg-field-label">
+                      Starting price
+                      <input name="startingPrice" type="number" min="0" step="0.01" defaultValue={pack.startingPrice ?? ""} aria-label={`${pack.title} starting price`} />
+                    </label>
+                   <div className="pkg-field-label pkg-field-label--wide pkg-media-section">
+                      <span className="pkg-media-label">Package media <span className="pkg-media-hint">(shown to customers on explore page)</span></span>
+
+                      {/* Live preview — updates instantly when file is selected */}
+                      {(previewVideo || previewImage) && (
+                        <div className={`pkg-media-preview${preview ? " pkg-media-preview--changed" : ""}`}>
+                          {previewVideo ? (
+                            <video src={previewVideo} muted autoPlay loop playsInline className="pkg-media-preview-asset" />
+                          ) : (
+                            <img src={previewImage} alt="Package media preview" className="pkg-media-preview-asset" />
+                          )}
+                          <span className="pkg-media-preview-label">
+                            {preview ? "⚡ New selection — save to apply" : "Current — what customers see"}
+                          </span>
+                        </div>
+                      )}
+
+                      <div className="pkg-media-upload-grid">
+                        {/* Image upload */}
+                        <div className="pkg-media-upload-card">
+                          <span className="pkg-media-upload-title">🖼 Package image</span>
+                          <label className="pkg-media-row-label">
+                            Upload image file
+                            <input
+                              name="imageUrl"
+                              type="file"
+                              accept="image/*"
+                              aria-label={`${pack.title} image file`}
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                const dataUrl = await fileToDataUrl(file);
+                                setFilePreview((prev) => ({ ...prev, [pack.id]: { ...prev[pack.id], image: dataUrl, video: undefined } }));
+                              }}
+                            />
+                          </label>
+                          <label className="pkg-media-row-label">
+                            Or paste image URL
+                            <input
+                              name="imageUrlText"
+                              type="url"
+                              placeholder="https://images.unsplash.com/..."
+                              defaultValue=""
+                              aria-label={`${pack.title} image URL`}
+                              onChange={(e) => {
+                                const url = e.target.value.trim();
+                                if (url) setFilePreview((prev) => ({ ...prev, [pack.id]: { ...prev[pack.id], image: url, video: undefined } }));
+                              }}
+                            />
+                          </label>
+                          <input name="existingImageUrl" type="hidden" value={
+                            pack.imageUrl && !pack.imageUrl.startsWith("data:video/") ? pack.imageUrl : ""
+                          } />
+                        </div>
+
+                        {/* Video upload */}
+                        <div className="pkg-media-upload-card">
+                          <span className="pkg-media-upload-title">🎬 Package video</span>
+                          <label className="pkg-media-row-label">
+                            Upload video file
+                            <input
+                              name="videoFile"
+                              type="file"
+                              accept="video/mp4,video/webm"
+                              aria-label={`${pack.title} video file`}
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                const dataUrl = await fileToDataUrl(file);
+                                setFilePreview((prev) => ({ ...prev, [pack.id]: { ...prev[pack.id], video: dataUrl, image: undefined } }));
+                              }}
+                            />
+                          </label>
+                          <label className="pkg-media-row-label">
+                            Or paste video URL
+                            <input
+                              name="videoUrlText"
+                              type="url"
+                              placeholder="https://example.com/video.mp4"
+                              defaultValue={pack.videoUrl && !pack.videoUrl.startsWith("data:") ? pack.videoUrl : ""}
+                              aria-label={`${pack.title} video URL`}
+                              onChange={(e) => {
+                                const url = e.target.value.trim();
+                                if (url) setFilePreview((prev) => ({ ...prev, [pack.id]: { ...prev[pack.id], video: url, image: undefined } }));
+                              }}
+                            />
+                          </label>
+                          <input name="existingVideoUrl" type="hidden" value={pack.videoUrl ?? ""} />
+                        </div>
+                      </div>
+                    </div>
+
+                    <label className="pkg-field-label pkg-field-label--wide">
+                      Local places
+                      <textarea name="localPlaces" defaultValue={pack.localPlaces ?? ""} placeholder="Places covered in this package" aria-label={`${pack.title} local places`} />
+                    </label>
+                    <label className="pkg-field-label">
+                      Region
+                      <select name="region" defaultValue={pack.region ?? ""} aria-label={`${pack.title} region`}>
+                        <option value="">— No region —</option>
+                        <option value="Pune">Pune</option>
+                        <option value="Nashik">Nashik</option>
+                        <option value="Shirdi">Shirdi</option>
+                        <option value="Multi-Region">Multi-Region</option>
+                      </select>
+                    </label>
+                    <label className="pkg-field-label">
+                      Total distance (km)
+                      <input name="totalDistanceKm" type="number" min="0" step="1" defaultValue={pack.totalDistanceKm ?? ""} placeholder="e.g. 250" aria-label={`${pack.title} total distance km`} />
+                    </label>
+                    <label className="pkg-field-label pkg-field-label--wide">
+                      Sub-places (comma-separated)
+                      <input name="subPlaces" defaultValue={pack.subPlaces ?? ""} placeholder="e.g. Parvati Hill, Shaniwar Wada, Sinhagad Fort" aria-label={`${pack.title} sub places`} />
+                    </label>
+                    <label className="pkg-field-label pkg-field-label--wide">
+                      Route order / itinerary
+                      <textarea name="routeOrder" defaultValue={pack.routeOrder ?? ""} placeholder="e.g. Pune → Stop 1 (7AM) → Stop 2 (9AM) → Pune (6PM)" aria-label={`${pack.title} route order`} />
+                    </label>
+                    <label className="pkg-field-label pkg-field-label--wide">
+                      Summary
+                      <textarea name="summary" defaultValue={pack.summary} aria-label={`${pack.title} summary`} />
+                    </label>
+                    <label className="pkg-field-label pkg-field-label--wide">
+                      Description
+                      <textarea name="description" defaultValue={pack.description} aria-label={`${pack.title} description`} />
+                    </label>
+                    {suggestedDistance && !pack.distanceKm && <small className="pkg-distance-suggestion">Suggested route distance from Pune: {suggestedDistance} km</small>}
+                  </div>
+
                   <div className="pkg-card-body">
 
                     {/* Provider column */}
@@ -755,15 +1065,9 @@ export function AdminDashboard() {
                       <span className="pkg-col-label">Vehicle</span>
                       <strong className="pkg-col-value">{pack.carNumber ?? "Number pending"}</strong>
                       <small className="pkg-col-detail">{pack.carModel ?? statusText(pack.carType)} · {pack.seatsAvailable ?? 4} seats</small>
-                      <label className="pkg-field-label">
-                        Car colour
-                        <input
-                          name="carColor"
-                          defaultValue={pack.carColor ?? ""}
-                          placeholder="e.g. White"
-                          aria-label={`${pack.title} car colour`}
-                        />
-                      </label>
+                      <small className="pkg-col-detail">RC: {pack.rcNumber || "Not provided"}</small>
+                      <small className="pkg-col-detail">Licence: {pack.licenseNumber || "Not provided"}</small>
+                      <small className="pkg-col-detail">Holder: {pack.licenseHolderName || "Not provided"}</small>
                     </div>
 
                     {/* Pricing column — simple */}
@@ -791,23 +1095,40 @@ export function AdminDashboard() {
                   </div>
 
                   {/* ── Divider ── */}
+                  <div className="pkg-verification-panel">
+                    <div>
+                      <span className="pkg-col-label">Submitted verification</span>
+                      <strong>Provider uploads and vehicle documents</strong>
+                    </div>
+                    <div className="pkg-doc-row">
+                      {pack.carPhotoUrl ? <a className="pkg-doc-ok" href={pack.carPhotoUrl} target="_blank" rel="noreferrer">View car photo</a> : <span className="pkg-doc-missing">Car photo missing</span>}
+                      {pack.licenseDocumentUrl ? <a className="pkg-doc-ok" href={pack.licenseDocumentUrl} target="_blank" rel="noreferrer">View licence</a> : <span className="pkg-doc-missing">Licence missing</span>}
+                      {pack.rcDocumentUrl ? <a className="pkg-doc-ok" href={pack.rcDocumentUrl} target="_blank" rel="noreferrer">View RC document</a> : <span className="pkg-doc-missing">RC document missing</span>}
+                    </div>
+                    {pack.carPhotoUrl && /^data:image\//i.test(pack.carPhotoUrl) && (
+                      <img className="pkg-car-preview" src={pack.carPhotoUrl} alt={`${pack.title} submitted car`} />
+                    )}
+                  </div>
+
                   <div className="pkg-card-divider" />
 
                   {/* ── Controls row ── */}
                   <div className="pkg-card-controls">
                     <label className="pkg-ctrl-field">
                       Status
-                      <select name="availabilityStatus" defaultValue={pack.availabilityStatus ?? "AVAILABLE"} aria-label={`${pack.title} availability`}>
-                        <option value="AVAILABLE">Available</option>
-                        <option value="PENDING_ADMIN_REVIEW">Pending review</option>
-                        <option value="CHANGES_REQUESTED">Changes requested</option>
-                        <option value="REJECTED_BY_COMPANY">Rejected</option>
-                        <option value="UNAVAILABLE">Unavailable</option>
+                      <select
+                        name="availabilityStatus"
+                        value={selectedStatus}
+                        onChange={(e) => setPendingStatus((prev) => ({ ...prev, [pack.id]: e.target.value }))}
+                        aria-label={`${pack.title} availability`}
+                      >
+                        <option value="AVAILABLE">✅ Available (live)</option>
+                        <option value="UNAVAILABLE">🔴 Unavailable (hidden)</option>
+                        <option value="PENDING_ADMIN_REVIEW">⏳ Pending review</option>
+                        <option value="CHANGES_REQUESTED">✏️ Changes requested</option>
+                        <option value="REJECTED_BY_COMPANY">❌ Rejected</option>
+                        <option value="CANCELLATION_REQUESTED">🚫 Cancellation requested</option>
                       </select>
-                    </label>
-                    <label className="pkg-ctrl-field">
-                      Video URL
-                      <input name="videoUrl" defaultValue={pack.videoUrl ?? ""} placeholder="Paste video link" aria-label={`${pack.title} video`} />
                     </label>
                     <label className="pkg-ctrl-field pkg-ctrl-field--grow">
                       Admin note
@@ -815,7 +1136,6 @@ export function AdminDashboard() {
                     </label>
 
                     {/* Hidden passthrough fields */}
-                    <input name="distanceKm" type="hidden" value={pack.distanceKm ?? ""} />
                     <input name="carPhotoUrl" type="hidden" value={pack.carPhotoUrl ?? ""} />
                     <input name="carNumber" type="hidden" value={pack.carNumber ?? ""} />
                     <input name="carModel" type="hidden" value={pack.carModel ?? ""} />
@@ -827,15 +1147,21 @@ export function AdminDashboard() {
                         <input name="featured" type="checkbox" defaultChecked={pack.featured} />
                         Featured
                       </label>
-                      <button className="primary-button pkg-save-btn" type="submit">Save</button>
+                      <button
+                        className={`pkg-save-btn ${selectedStatus === "UNAVAILABLE" ? "pkg-save-btn--danger" : "primary-button"}`}
+                        type="submit"
+                      >
+                        {saveLabel}
+                      </button>
                     </div>
                   </div>
 
+                  </fieldset>
+
                 </form>
-              );
-            })}
+            ))()}
           </div>
-        )}
+        </div>
       </div>
     );
   }
@@ -857,6 +1183,12 @@ export function AdminDashboard() {
               <small>{pack.providerBusinessName ?? "Provider submitted"} - {pack.localPlaces ?? pack.summary}</small>
               <small>Licence: {pack.licenseNumber ?? "Not provided"} {pack.licenseHolderName ? `- ${pack.licenseHolderName}` : ""}</small>
               <small>Rate: {pack.pricePerKm ? `INR ${pack.pricePerKm}/km` : "Not set by provider"}{pack.distanceKm ? ` · Est. ${pack.distanceKm} km` : ""}{pack.providerPayout ? ` · Payout INR ${pack.providerPayout}` : ""}</small>
+              <div className="pkg-doc-row">
+                {pack.carPhotoUrl ? <a className="pkg-doc-ok" href={pack.carPhotoUrl} target="_blank" rel="noreferrer">View car photo</a> : <span className="pkg-doc-missing">Car photo missing</span>}
+                {pack.licenseDocumentUrl ? <a className="pkg-doc-ok" href={pack.licenseDocumentUrl} target="_blank" rel="noreferrer">View licence</a> : <span className="pkg-doc-missing">Licence missing</span>}
+                {pack.rcDocumentUrl ? <a className="pkg-doc-ok" href={pack.rcDocumentUrl} target="_blank" rel="noreferrer">View RC</a> : <span className="pkg-doc-missing">RC missing</span>}
+              </div>
+              {pack.reviewNotes && <small className="pkg-review-note">Update message: {pack.reviewNotes}</small>}
               {(pack.providerCompletedCount ?? 0) > 0 && (
                 <span className="provider-history-badge">
                   Verified provider — {pack.providerCompletedCount} completed package{pack.providerCompletedCount === 1 ? "" : "s"}
@@ -895,8 +1227,13 @@ export function AdminDashboard() {
           {feedback.length === 0 && <p className="muted">No feedback submitted yet.</p>}
           {feedback.map((item) => (
             <div className="status-line" key={item.id}>
-              <strong>Package {item.packageRating}/5 - Support {item.supportRating}/5</strong>
+              <strong>Package {item.packageRating}/5 - Provider {item.providerRating}/5 - Support {item.supportRating}/5</strong>
+              <span>{item.comment || "No written comment."}</span>
               <span>{item.moderationStatus}</span>
+              <div className="row-actions">
+                <button className="outline-button" type="button" onClick={() => void moderateFeedback(item.id, "REJECTED")}>Reject</button>
+                <button className="primary-button" type="button" onClick={() => void moderateFeedback(item.id, "APPROVED")}>Approve</button>
+              </div>
             </div>
           ))}
         </section>

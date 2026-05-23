@@ -6,6 +6,7 @@ import com.carhub.auth.dto.AdminIdCurrentOtpConfirmRequest;
 import com.carhub.auth.dto.AdminIdNewOtpRequest;
 import com.carhub.auth.dto.AuthResponse;
 import com.carhub.auth.dto.ForgotPasswordRequest;
+import com.carhub.auth.dto.GoogleAuthRequest;
 import com.carhub.auth.dto.LoginRequest;
 import com.carhub.auth.dto.LogoutResponse;
 import com.carhub.auth.dto.OtpResponse;
@@ -46,6 +47,11 @@ public class AuthController {
     @PostMapping("/login")
     AuthResponse login(@Valid @RequestBody LoginRequest request) {
         return authService.login(request);
+    }
+
+    @PostMapping("/google")
+    AuthResponse google(@Valid @RequestBody GoogleAuthRequest request) {
+        return authService.google(request);
     }
 
     @GetMapping("/me")

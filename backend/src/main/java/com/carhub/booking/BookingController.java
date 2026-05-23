@@ -1,6 +1,7 @@
 package com.carhub.booking;
 
 import com.carhub.booking.dto.BookingRequestDTO;
+import com.carhub.booking.dto.CompletionOtpRequest;
 import com.carhub.booking.dto.TicketDTO;
 import com.carhub.security.CurrentUser;
 import jakarta.validation.Valid;
@@ -46,6 +47,11 @@ public class BookingController {
     @GetMapping("/api/v1/tickets/{ticketId}")
     TicketDTO get(@PathVariable UUID ticketId) {
         return bookingService.customerTicket(currentUser.require().id(), ticketId);
+    }
+
+    @PostMapping("/api/v1/tickets/{ticketId}/verify-completion")
+    TicketDTO verifyCompletion(@PathVariable UUID ticketId, @Valid @RequestBody CompletionOtpRequest request) {
+        return bookingService.verifyCompletionOtp(currentUser.require().id(), ticketId, request.otp());
     }
 
     @GetMapping("/api/v1/tickets/{ticketId}/pdf")

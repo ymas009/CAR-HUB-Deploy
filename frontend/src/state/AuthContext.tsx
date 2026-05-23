@@ -6,6 +6,7 @@ interface AuthContextValue {
   user: UserSession | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<UserSession>;
+  googleLogin: (credential: string, accountType: "CUSTOMER" | "PROVIDER") => Promise<UserSession>;
   register: (payload: Record<string, unknown>) => Promise<void>;
   confirmRegistration: (email: string, otp: string) => Promise<UserSession>;
   loginAs: (role: Exclude<Role, "GUEST">) => Promise<void>;
@@ -57,6 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       loading,
       login: async (email, password) => acceptAuthResponse(await api.post<AuthApiResponse>("/auth/login", { email, password })),
+      googleLogin: async (credential, accountType) => acceptAuthResponse(await api.post<AuthApiResponse>("/auth/google", { credential, accountType })),
       register: async (payload) => { await api.post("/auth/register", payload); },
       confirmRegistration: async (email, otp) => acceptAuthResponse(await api.post<AuthApiResponse>("/auth/register/confirm", { email, otp })),
       loginAs: async (role) => {

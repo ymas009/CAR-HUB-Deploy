@@ -2,6 +2,7 @@ package com.carhub.feedback;
 
 import com.carhub.audit.AuditService;
 import com.carhub.common.BusinessRuleException;
+import com.carhub.booking.TicketRepository;
 import com.carhub.domain.RequestStatus;
 import com.carhub.feedback.dto.FeedbackRequest;
 import com.carhub.request.PackageRequest;
@@ -31,9 +32,9 @@ class FeedbackServiceTest {
         PackageRequestRepository requests = mock(PackageRequestRepository.class);
         when(requests.findById(requestId)).thenReturn(Optional.of(request));
 
-        FeedbackService service = new FeedbackService(mock(FeedbackRepository.class), requests, mock(AppUserRepository.class), mock(AuditService.class));
+        FeedbackService service = new FeedbackService(mock(FeedbackRepository.class), requests, mock(TicketRepository.class), mock(AppUserRepository.class), mock(AuditService.class));
 
         assertThrows(BusinessRuleException.class,
-                () -> service.create(customerId, new FeedbackRequest(requestId, 5, 5, "Good")));
+                () -> service.create(customerId, new FeedbackRequest(requestId, null, 5, 5, 5, "Good")));
     }
 }

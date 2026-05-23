@@ -31,7 +31,7 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.ignoringRequestMatchers("/api/**"))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .headers(headers -> headers
-                        .contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'self'; img-src 'self' https: data:; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://localhost:8080 http://localhost:5173 http://localhost:5174"))
+                        .contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'self'; img-src 'self' https: data:; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://localhost:8081 http://localhost:5173 http://localhost:5174 http://localhost:5175 http://localhost:8088 http://localhost:8089 http://localhost:8090"))
                         .frameOptions(frame -> frame.deny())
                         .referrerPolicy(referrer -> referrer.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
                         .httpStrictTransportSecurity(hsts -> hsts.includeSubDomains(true).preload(true).maxAgeInSeconds(31536000))
@@ -40,6 +40,7 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/packages/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/content/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/feedback/approved").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/location/**").permitAll()
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers("/api/v1/admin/**").hasAnyRole("ADMIN", "SUB_ADMIN")

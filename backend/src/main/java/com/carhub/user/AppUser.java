@@ -29,11 +29,14 @@ public class AppUser {
     @Column(nullable = false, unique = true)
     private String email;
 
-    @Column(nullable = false, unique = true)
+    @Column(unique = true)
     private String mobile;
 
     @Column(name = "password_hash", nullable = false)
     private String passwordHash;
+
+    @Column(name = "google_id", unique = true)
+    private String googleId;
 
     @Column(name = "full_name", nullable = false)
     private String fullName;
@@ -61,6 +64,8 @@ public class AppUser {
     public void setMobile(String mobile) { this.mobile = mobile; }
     public String getPasswordHash() { return passwordHash; }
     public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
+    public String getGoogleId() { return googleId; }
+    public void setGoogleId(String googleId) { this.googleId = googleId; }
     public String getFullName() { return fullName; }
     public void setFullName(String fullName) { this.fullName = fullName; }
     public String getStatus() { return status; }

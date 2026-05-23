@@ -23,10 +23,12 @@ spring:
     enabled: false
 
 carhub:
+  google:
+    client-id: ${CARHUB_GOOGLE_CLIENT_ID:}
   security:
     jwt-secret: local-dev-secret-change-before-production
 
 razorpay:
-  key-id: rzp_test_SqRVypcTUT46VB
-  key-secret: DrBrPAf50xFJ68OZM2ZkftLq
-  currency: INR
+  key-id: ${RAZORPAY_KEY_ID:}
+  key-secret: ${RAZORPAY_KEY_SECRET:}
+  currency: ${RAZORPAY_CURRENCY:INR}

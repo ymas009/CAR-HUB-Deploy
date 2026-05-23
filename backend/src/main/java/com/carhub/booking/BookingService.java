@@ -2,6 +2,8 @@ package com.carhub.booking;
 
 import com.carhub.audit.AuditService;
 import com.carhub.booking.dto.BookingRequestDTO;
+import com.carhub.booking.dto.CompletionOtpResponse;
+import com.carhub.booking.dto.LocationUpdateRequest;
 import com.carhub.booking.dto.ProviderTicketDTO;
 import com.carhub.booking.dto.TicketDTO;
 import com.carhub.common.BusinessRuleException;
@@ -17,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.format.DateTimeParseException;
@@ -121,6 +124,70 @@ public class BookingService {
                 .toList();
     }
 
+    @Transactional
+    public ProviderTicketDTO startJourney(UUID providerUserId, UUID ticketId) {
+        Ticket ticket = providerTicketForUpdate(providerUserId, ticketId);
+        if (ticket.getStatus() != TicketStatus.ASSIGNED && ticket.getStatus() != TicketStatus.BOOKED) {
+            throw new BusinessRuleException("JOURNEY_NOT_STARTABLE", "Journey can be started only for assigned tickets.");
+        }
+        TicketStatus previous = ticket.getStatus();
+        ticket.setStatus(TicketStatus.IN_PROGRESS);
+        ticket.setJourneyStartedAt(Instant.now());
+        ticket.touch();
+        auditService.recordAccessDecision(providerUserId, "PROVIDER", "JOURNEY_STARTED", ticket.getId(), previous + " -> " + ticket.getStatus());
+        return toProviderTicket(ticket);
+    }
+
+    @Transactional
+    public ProviderTicketDTO updateProviderLocation(UUID providerUserId, UUID ticketId, LocationUpdateRequest request) {
+        Ticket ticket = providerTicketForUpdate(providerUserId, ticketId);
+        if (ticket.getStatus() != TicketStatus.IN_PROGRESS && ticket.getStatus() != TicketStatus.COMPLETION_OTP_PENDING) {
+            throw new BusinessRuleException("LOCATION_NOT_ALLOWED", "Location can be updated only while the journey is active.");
+        }
+        ticket.setProviderLatitude(request.latitude().trim());
+        ticket.setProviderLongitude(request.longitude().trim());
+        ticket.setProviderLocationUpdatedAt(Instant.now());
+        ticket.touch();
+        return toProviderTicket(ticket);
+    }
+
+    @Transactional
+    public CompletionOtpResponse requestCompletionOtp(UUID providerUserId, UUID ticketId) {
+        Ticket ticket = providerTicketForUpdate(providerUserId, ticketId);
+        if (ticket.getStatus() != TicketStatus.IN_PROGRESS) {
+            throw new BusinessRuleException("OTP_NOT_ALLOWED", "Completion OTP can be requested only for an active journey.");
+        }
+        String otp = String.valueOf(100000 + secureRandom.nextInt(900000));
+        Instant expiresAt = Instant.now().plusSeconds(600);
+        ticket.setCompletionOtp(otp);
+        ticket.setCompletionOtpExpiresAt(expiresAt);
+        ticket.setStatus(TicketStatus.COMPLETION_OTP_PENDING);
+        ticket.touch();
+        auditService.recordAccessDecision(providerUserId, "PROVIDER", "COMPLETION_OTP_REQUESTED", ticket.getId(), "OTP generated for customer verification");
+        return new CompletionOtpResponse(true, expiresAt, "Share this OTP with the customer to complete the journey.", otp);
+    }
+
+    @Transactional
+    public TicketDTO verifyCompletionOtp(UUID customerId, UUID ticketId, String otp) {
+        Ticket ticket = ticketRepository.findByIdAndCustomerId(ticketId, customerId)
+                .orElseThrow(() -> new BusinessRuleException("TICKET_NOT_FOUND", "Ticket not found."));
+        if (ticket.getStatus() != TicketStatus.COMPLETION_OTP_PENDING) {
+            throw new BusinessRuleException("OTP_NOT_PENDING", "No completion OTP is pending for this journey.");
+        }
+        if (ticket.getCompletionOtpExpiresAt() == null || ticket.getCompletionOtpExpiresAt().isBefore(Instant.now())) {
+            throw new BusinessRuleException("OTP_EXPIRED", "Completion OTP expired. Ask the provider to generate a new OTP.");
+        }
+        if (ticket.getCompletionOtp() == null || !ticket.getCompletionOtp().equals(otp.trim())) {
+            throw new BusinessRuleException("OTP_INVALID", "Completion OTP is incorrect.");
+        }
+        ticket.setStatus(TicketStatus.COMPLETED);
+        ticket.setCompletedAt(Instant.now());
+        ticket.setCompletionOtp(null);
+        ticket.touch();
+        auditService.recordAccessDecision(customerId, "CUSTOMER", "JOURNEY_COMPLETED", ticket.getId(), "Customer verified completion OTP");
+        return toCustomerTicket(ticket, false);
+    }
+
     @Transactional(readOnly = true)
     public TicketDTO adminTicket(UUID ticketId) {
         Ticket ticket = ticketRepository.findById(ticketId)
@@ -131,6 +198,11 @@ public class BookingService {
     @Transactional(readOnly = true)
     public List<TicketDTO> adminTickets() {
         return ticketRepository.findAll().stream().map(ticket -> toCustomerTicket(ticket, true)).toList();
+    }
+
+    private Ticket providerTicketForUpdate(UUID providerUserId, UUID ticketId) {
+        return ticketRepository.findByIdAndProvider_User_Id(ticketId, providerUserId)
+                .orElseThrow(() -> new BusinessRuleException("TICKET_NOT_FOUND", "Provider ticket not found."));
     }
 
     private void validateBooking(BookingRequestDTO request) {
@@ -218,6 +290,8 @@ public class BookingService {
                 includeAdminOnly ? customer.getEmail() : null,
                 includeAdminOnly ? customer.getMobile() : null,
                 includeAdminOnly ? ticket.getTravellersDetails() : null,
+                ticket.getProviderLatitude(), ticket.getProviderLongitude(), ticket.getProviderLocationUpdatedAt(),
+                ticket.getJourneyStartedAt(), ticket.getCompletionOtpExpiresAt(), ticket.getCompletedAt(),
                 ticket.getCreatedAt());
     }
 
@@ -227,7 +301,9 @@ public class BookingService {
                 pack.getDestination(), ticket.getTravellersCount(), ticket.getCarType(), ticket.getCarPhotoUrl(),
                 ticket.getCarNumber(), ticket.getCarModel(), ticket.getCarColor(), ticket.getSpecialRequests(),
                 ticket.getPickupLocation(), ticket.getPickupDate() == null ? null : ticket.getPickupDate().toString(), ticket.getPickupTime(),
-                ticket.getMaskedCustomerRef(), ticket.getStatus(), ticket.getCreatedAt());
+                ticket.getMaskedCustomerRef(), ticket.getStatus(), ticket.getProviderLatitude(), ticket.getProviderLongitude(),
+                ticket.getProviderLocationUpdatedAt(), ticket.getJourneyStartedAt(), ticket.getCompletionOtpExpiresAt(),
+                ticket.getCompletedAt(), ticket.getCreatedAt());
     }
 
     private String carDetails(CarType carType) {

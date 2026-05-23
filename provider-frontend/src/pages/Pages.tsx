@@ -1,6 +1,7 @@
 import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
+import { CredentialResponse, GoogleLogin } from "@react-oauth/google";
 import { pickupPoints } from "../data/pickupPoints";
 
 import {
@@ -320,13 +321,20 @@ function getUserFriendlyError(exception: unknown, fallback: string) {
   return message;
 }
 
+function formatDistanceFromPune(distanceKm?: number) {
+  return typeof distanceKm === "number" && Number.isFinite(distanceKm)
+    ? `${Math.round(distanceKm)} km`
+    : "Distance unavailable";
+}
+
 function toCard(item: ApiPackage): PackageCard {
   return {
     id: item.id,
     place: item.title,
-    distance_from_pune: "Distance TBD",
+    distance_from_pune: formatDistanceFromPune(item.distanceKm),
     travel_time: `${item.durationDays} days`,
     highlights: item.summary,
+    localPlaces: item.localPlaces,
     category: item.category,
     image: item.imageUrl,
     video: item.videoUrl
@@ -714,6 +722,7 @@ function PackageTile({ item, index }: { item: PackageCard; index: number }) {
           </div>
           <h3>{item.place}</h3>
           <p><MapPin size={15} /> {item.distance_from_pune} from Pune</p>
+          {item.localPlaces && <p className="package-subplaces-copy"><MapPin size={15} /> Route: {item.localPlaces}</p>}
           <div className="package-footer">
             <strong className="highlights-text">{item.highlights}</strong>
             <Link className="text-link" to={`/packages/${item.id}`}>Details</Link>
@@ -811,14 +820,16 @@ export function MemberSelectionPage() {
 
   useEffect(() => {
     if (!packageId) return;
-    api.get<ApiPackage>(`/packages/${packageId}`).then(setPack).catch(() => setPack(null));
+    api.get<ApiPackage>(`/packages/${packageId}`)
+      .then((data) => {
+        setPack(data);
+        const type = (data.carType === "SIX_SEATER" ? "SIX_SEATER" : "FOUR_SEATER") as CarType;
+        setCarType(type);
+        const maxSeats = type === "SIX_SEATER" ? 6 : 4;
+        setTravellersCount((prev) => Math.min(prev, maxSeats));
+      })
+      .catch(() => setPack(null));
   }, [packageId]);
-
-  useEffect(() => {
-    if (travellersCount > 4) {
-      setCarType("SIX_SEATER");
-    }
-  }, [travellersCount]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -922,16 +933,13 @@ export function MemberSelectionPage() {
                 <FormField name="travellersCount" error={fieldErrors.travellersCount}>
                   <label className="booking-field-label" htmlFor="travellersCount">Travellers</label>
                   <select id="travellersCount" value={travellersCount} onChange={(event) => setTravellersCount(Number(event.target.value))} aria-label="Number of travellers">
-                    {[1, 2, 3, 4, 5, 6].map((count) => <option key={count} value={count}>{count} traveller{count > 1 ? "s" : ""}</option>)}
+                    {Array.from({ length: carType === "SIX_SEATER" ? 6 : 4 }, (_, i) => i + 1).map((count) => <option key={count} value={count}>{count} traveller{count > 1 ? "s" : ""}</option>)}
                   </select>
                 </FormField>
-                <FormField name="carType" error={fieldErrors.carType}>
+                <div>
                   <span className="booking-field-label">Car type</span>
-                  <div className="radio-group booking-radio-group">
-                    <label><input type="radio" checked={carType === "FOUR_SEATER"} disabled={travellersCount > 4} onChange={() => setCarType("FOUR_SEATER")} />4-seater</label>
-                    <label><input type="radio" checked={carType === "SIX_SEATER"} onChange={() => setCarType("SIX_SEATER")} />6-seater</label>
-                  </div>
-                </FormField>
+                  <p className="booking-car-type-label">{carType === "SIX_SEATER" ? "6-seater" : "4-seater"}</p>
+                </div>
               </div>
 
               <div className="booking-section-heading">
@@ -1072,9 +1080,10 @@ export function BookingConfirmationPage() {
 }
 
 export function AuthPage({ mode }: { mode: "login" | "register" | "forgot" }) {
-  const { login, logout, register, confirmRegistration } = useAuth();
+  const { login, googleLogin, logout, register, confirmRegistration } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
   const returnTo = (location.state as { returnTo?: string } | null)?.returnTo ?? (isProviderPortal ? "/provider" : "/customer");
   const authState = location.state as { role?: "CUSTOMER" | "PROVIDER"; formMode?: "login" | "register"; returnTo?: string } | null;
   const defaultRole = isProviderPortal ? "PROVIDER" : null;
@@ -1082,6 +1091,7 @@ export function AuthPage({ mode }: { mode: "login" | "register" | "forgot" }) {
   const [notice, setNotice] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [submitting, setSubmitting] = useState(false);
+  const [googleSubmitting, setGoogleSubmitting] = useState(false);
   const [selectedRole, setSelectedRole] = useState<"CUSTOMER" | "PROVIDER" | null>(authState?.role ?? defaultRole);
   const [formMode, setFormMode] = useState<"login" | "register">(authState?.formMode ?? (mode === "register" ? "register" : "login"));
   const [recoveryStep, setRecoveryStep] = useState<"request" | "otp" | "password">("request");
@@ -1173,6 +1183,42 @@ export function AuthPage({ mode }: { mode: "login" | "register" | "forgot" }) {
     setNotice("");
     setFieldErrors({});
     navigate("/login", authState?.role ? { state: { role: authState.role, formMode: "login" } } : undefined);
+  }
+
+  async function completeAuthSession(session: Awaited<ReturnType<typeof login>>) {
+    if (selectedRole && session.role !== selectedRole) {
+      logout();
+      setError(`This email is registered as a ${session.role.toLowerCase()} account. Please use the correct workspace.`);
+      return;
+    }
+
+    if (session.role === "PROVIDER") {
+      navigate("/provider");
+    } else {
+      navigate(returnTo);
+    }
+  }
+
+  async function handleGoogleSuccess(response: CredentialResponse) {
+    if (!selectedRole) {
+      setError("Choose customer or provider before using Google sign-in.");
+      return;
+    }
+    if (!response.credential) {
+      setError("Google sign-in did not return a credential.");
+      return;
+    }
+    setError("");
+    setNotice("");
+    setFieldErrors({});
+    setGoogleSubmitting(true);
+    try {
+      await completeAuthSession(await googleLogin(response.credential, selectedRole));
+    } catch (exception) {
+      setError(getUserFriendlyError(exception, "Google sign-in failed."));
+    } finally {
+      setGoogleSubmitting(false);
+    }
   }
 
   async function reverseGeocode(latitude: string, longitude: string): Promise<ReverseGeocodeResult> {
@@ -1345,17 +1391,7 @@ export function AuthPage({ mode }: { mode: "login" | "register" | "forgot" }) {
         session = await login(result.data.email, result.data.password);
       }
 
-      if (selectedRole && session.role !== selectedRole) {
-        logout();
-        setError(`This email is registered as a ${session.role.toLowerCase()} account. Please use the correct workspace.`);
-        return;
-      }
-
-      if (session.role === "PROVIDER") {
-        navigate("/provider");
-      } else {
-        navigate(returnTo);
-      }
+      await completeAuthSession(session);
     } catch (exception) {
       setError(getUserFriendlyError(
         exception,
@@ -1396,12 +1432,43 @@ export function AuthPage({ mode }: { mode: "login" | "register" | "forgot" }) {
                 <button type="button" className="text-link" onClick={goBackFromForgot}>Go back</button>
               </div>
             )}
+            {selectedRole && mode !== "forgot" && registrationStep === "details" && (
+              <>
+                <div className="google-auth-panel">
+                  {googleClientId ? (
+                    <>
+                      <GoogleLogin
+                        onSuccess={handleGoogleSuccess}
+                        onError={() => setError("Google sign-in was cancelled or failed.")}
+                        theme="filled_black"
+                        shape="rectangular"
+                        size="large"
+                        width="320"
+                        text={formMode === "register" ? "signup_with" : "signin_with"}
+                      />
+                      {googleSubmitting && <span className="form-helper">Completing Google sign-in...</span>}
+                    </>
+                  ) : (
+                    <span className="form-helper">Google sign-in is not configured for this app.</span>
+                  )}
+                </div>
+                <div className="google-auth-divider">Or</div>
+              </>
+            )}
             {selectedRole && mode !== "forgot" && (
               <div className="auth-actions-bar">
                 <button type="button" className="text-link" onClick={() => setFormMode(formMode === "register" ? "login" : "register")}>
                   {formMode === "register" ? "Already have an account? Sign in" : "Create an account"}
                 </button>
                 {!isProviderPortal && <button type="button" className="text-link" onClick={resetSelection}>Back to options</button>}
+                {isProviderPortal && (
+                  <a
+                    className="text-link"
+                    href={`${(import.meta.env.VITE_CUSTOMER_APP_URL ?? "http://localhost:5173").replace(/\/$/, "")}/login`}
+                  >
+                    Back to options
+                  </a>
+                )}
               </div>
             )}
             <form className="stacked-form" onSubmit={submit}>
@@ -1556,6 +1623,7 @@ function FormField({ name, error, children }: { name: string; error?: string; ch
 
 export function CustomerDashboard() {
   const [bookingTickets, setBookingTickets] = useState<BookingTicket[]>([]);
+  const [customerMessage, setCustomerMessage] = useState("");
   const activeBookings = bookingTickets.filter((item) => item.status === "ASSIGNED" || item.status === "BOOKED");
   const nextTrip = activeBookings[0] ?? bookingTickets[0];
 
@@ -1565,6 +1633,36 @@ export function CustomerDashboard() {
   }
 
   useEffect(() => { void loadCustomerWorkspace(); }, []);
+
+  async function verifyTicketCompletion(event: FormEvent<HTMLFormElement>, ticketId: string) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    try {
+      await api.post<BookingTicket>(`/tickets/${ticketId}/verify-completion`, { otp: form.get("otp") });
+      setCustomerMessage("Journey completion verified.");
+      await loadCustomerWorkspace();
+    } catch (exception) {
+      setCustomerMessage(exception instanceof Error ? exception.message : "OTP verification failed.");
+    }
+  }
+
+  async function submitTicketFeedback(event: FormEvent<HTMLFormElement>, ticketId: string) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    try {
+      await api.post("/customer/feedback", {
+        ticketId,
+        packageRating: Number(form.get("packageRating")),
+        providerRating: Number(form.get("providerRating")),
+        supportRating: Number(form.get("supportRating")),
+        comment: form.get("comment")
+      });
+      setCustomerMessage("Feedback submitted for admin review.");
+      event.currentTarget.reset();
+    } catch (exception) {
+      setCustomerMessage(exception instanceof Error ? exception.message : "Feedback submit failed.");
+    }
+  }
 
   return (
     <DashboardShell title="Customer workspace" role="CUSTOMER">
@@ -1591,6 +1689,7 @@ export function CustomerDashboard() {
               </div>
               <Link className="outline-button" to="/packages">New trip<ArrowRight size={16} /></Link>
             </div>
+            {customerMessage && <p className="journey-message">{customerMessage}</p>}
             {bookingTickets.length === 0 && (
               <div className="customer-empty-state">
                 <TicketCheck size={30} />
@@ -1664,6 +1763,39 @@ export function CustomerDashboard() {
                       PDF
                     </button>
                   </div>
+                  <div className="journey-panel">
+                    <strong>Journey tracking</strong>
+                    <span>Status: {ticket.status.replace(/_/g, " ").toLowerCase()}</span>
+                    {ticket.providerLatitude && ticket.providerLongitude ? (
+                      <a className="text-link" href={`https://www.google.com/maps?q=${ticket.providerLatitude},${ticket.providerLongitude}`} target="_blank" rel="noreferrer">
+                        Open provider GPS location
+                      </a>
+                    ) : (
+                      <span>Provider GPS location will appear after journey starts.</span>
+                    )}
+                    {ticket.providerLocationUpdatedAt && <small>Last updated {new Date(ticket.providerLocationUpdatedAt).toLocaleString()}</small>}
+                    {ticket.status === "COMPLETION_OTP_PENDING" && (
+                      <form className="journey-inline-form" onSubmit={(event) => verifyTicketCompletion(event, ticket.id)}>
+                        <input name="otp" placeholder="Enter completion OTP" inputMode="numeric" />
+                        <button className="primary-button" type="submit">Verify completion</button>
+                      </form>
+                    )}
+                    {ticket.status === "COMPLETED" && (
+                      <form className="journey-feedback-form" onSubmit={(event) => submitTicketFeedback(event, ticket.id)}>
+                        <select name="packageRating" defaultValue="5" aria-label="Package rating">
+                          {[5, 4, 3, 2, 1].map((rating) => <option key={rating} value={rating}>Package {rating}/5</option>)}
+                        </select>
+                        <select name="providerRating" defaultValue="5" aria-label="Provider rating">
+                          {[5, 4, 3, 2, 1].map((rating) => <option key={rating} value={rating}>Provider {rating}/5</option>)}
+                        </select>
+                        <select name="supportRating" defaultValue="5" aria-label="Support rating">
+                          {[5, 4, 3, 2, 1].map((rating) => <option key={rating} value={rating}>Support {rating}/5</option>)}
+                        </select>
+                        <textarea name="comment" placeholder="Share your journey experience" />
+                        <button className="primary-button" type="submit">Submit feedback</button>
+                      </form>
+                    )}
+                  </div>
                 </article>
               ))}
             </div>
@@ -1680,10 +1812,16 @@ export function ProviderDashboard() {
   const [bookingTickets, setBookingTickets] = useState<ProviderTicket[]>([]);
   const [packages, setPackages] = useState<ApiPackage[]>([]);
   const [message, setMessage] = useState("");
+  const [completionOtps, setCompletionOtps] = useState<Record<string, string>>({});
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [submittingPackage, setSubmittingPackage] = useState(false);
   const [activeSection, setActiveSection] = useState<ProviderSection>("overview");
   const [selectedManagePackageId, setSelectedManagePackageId] = useState<string | null>(null);
+  const [savedPackageIds, setSavedPackageIds] = useState<Set<string>>(new Set());
+  const [editingPackageIds, setEditingPackageIds] = useState<Set<string>>(new Set());
+  const [cancelRequestPackageId, setCancelRequestPackageId] = useState<string | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
+  const [submittingCancel, setSubmittingCancel] = useState(false);
   const [selectedPackageDestination, setSelectedPackageDestination] = useState("");
   const [selectedManageDestinations, setSelectedManageDestinations] = useState<Record<string, string>>({});
   const [selectedPickupAvailabilityMode, setSelectedPickupAvailabilityMode] = useState("ALWAYS");
@@ -1703,9 +1841,54 @@ export function ProviderDashboard() {
 
   useEffect(() => { void loadProviderWorkspace(); }, []);
 
+  async function startTicketJourney(ticketId: string) {
+    try {
+      await api.post<ProviderTicket>(`/provider/tickets/${ticketId}/start`, {});
+      setMessage("Journey started. GPS tracking is active when location is shared.");
+      await updateTicketLocation(ticketId);
+      await loadProviderWorkspace();
+    } catch (exception) {
+      setMessage(exception instanceof Error ? exception.message : "Journey start failed.");
+    }
+  }
+
+  async function updateTicketLocation(ticketId: string) {
+    if (!navigator.geolocation) {
+      setMessage("GPS is not supported in this browser.");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(async (position) => {
+      try {
+        await api.post<ProviderTicket>(`/provider/tickets/${ticketId}/location`, {
+          latitude: String(position.coords.latitude),
+          longitude: String(position.coords.longitude)
+        });
+        setMessage("Provider GPS location updated.");
+        await loadProviderWorkspace();
+      } catch (exception) {
+        setMessage(exception instanceof Error ? exception.message : "Location update failed.");
+      }
+    }, () => setMessage("Location permission denied. Allow GPS access to track this journey."));
+  }
+
+  async function requestCompletionOtp(ticketId: string) {
+    try {
+      const response = await api.post<{ otp: string; message: string }>(`/provider/tickets/${ticketId}/completion-otp`, {});
+      setCompletionOtps((current) => ({ ...current, [ticketId]: response.otp }));
+      setMessage(response.message || "Completion OTP generated.");
+      await loadProviderWorkspace();
+    } catch (exception) {
+      setMessage(exception instanceof Error ? exception.message : "Completion OTP request failed.");
+    }
+  }
+
   useEffect(() => {
     if (activeSection !== "packages") return;
-    const editablePackages = packages.filter((pack) => pack.availabilityStatus !== "BOOKED");
+    const editablePackages = packages.filter((pack) =>
+      pack.availabilityStatus !== "BOOKED" &&
+      pack.availabilityStatus !== "AVAILABLE" &&
+      pack.availabilityStatus !== "CANCELLATION_REQUESTED"
+    );
     if (editablePackages.length === 0) {
       setSelectedManagePackageId(null);
       return;
@@ -1806,7 +1989,9 @@ export function ProviderDashboard() {
         rcDocumentUrl
       });
       setSelectedManageDestinations((current) => ({ ...current, [packageId]: destination ?? "" }));
-      setMessage("Package vehicle and travel details updated for admin review.");
+      setSavedPackageIds((prev) => new Set(prev).add(packageId));
+      setEditingPackageIds((prev) => { const next = new Set(prev); next.delete(packageId); return next; });
+      setMessage("Package updated successfully.");
       await loadProviderWorkspace();
     } catch (exception) {
       const apiFieldErrors = toProviderFieldErrors(exception);
@@ -1818,25 +2003,53 @@ export function ProviderDashboard() {
     }
   }
 
-  const visiblePackages = packages.filter((pack) => pack.availabilityStatus !== "BOOKED");
+  async function requestCancellation(packageId: string) {
+    setSubmittingCancel(true);
+    setMessage("");
+    try {
+      await api.post(`/provider/packages/${packageId}/cancel-request`, { reason: cancelReason });
+      setMessage("Cancellation request submitted. Admin will review it.");
+      setCancelRequestPackageId(null);
+      setCancelReason("");
+      await loadProviderWorkspace();
+    } catch (exception) {
+      setMessage(exception instanceof Error ? exception.message : "Cancellation request failed.");
+    } finally {
+      setSubmittingCancel(false);
+    }
+  }
+
+  const manageablePackages = packages.filter((pack) => pack.availabilityStatus !== "BOOKED");
+  const visiblePackages = manageablePackages.filter((pack) =>
+    pack.availabilityStatus !== "AVAILABLE" && pack.availabilityStatus !== "CANCELLATION_REQUESTED"
+  );
   const livePackages = packages.filter((pack) => pack.availabilityStatus === "AVAILABLE").length;
   const pendingPackages = packages.filter((pack) => pack.availabilityStatus === "PENDING_ADMIN_REVIEW").length;
   const needsChangesPackages = packages.filter((pack) => pack.availabilityStatus === "CHANGES_REQUESTED").length;
-  const selectedManagePackage = visiblePackages.find((pack) => pack.id === selectedManagePackageId) ?? visiblePackages[0] ?? null;
+  const selectedManagePackage = manageablePackages.find((pack) => pack.id === selectedManagePackageId) ?? null;
   const packageStatusLabel = (status?: string) => {
     if (status === "PENDING_ADMIN_REVIEW") return "Waiting for approval";
     if (status === "AVAILABLE") return "Live";
+    if (status === "CANCELLATION_REQUESTED") return "Cancellation pending";
     if (status === "CHANGES_REQUESTED") return "Changes requested";
     if (status === "REJECTED_BY_COMPANY") return "Rejected";
     if (status === "BOOKED") return "Booked";
     return (status ?? "Pending").replace(/_/g, " ");
   };
+  const packageUpdateMessage = (pack: ApiPackage) => {
+    if (pack.reviewNotes?.trim()) return pack.reviewNotes.trim();
+    if (pack.availabilityStatus === "PENDING_ADMIN_REVIEW") return "Your latest package update is waiting for admin approval.";
+    if (pack.availabilityStatus === "CHANGES_REQUESTED") return "Admin requested changes. Update this package and submit it again.";
+    if (pack.availabilityStatus === "AVAILABLE") return "Package approved and live. It has been removed from the edit queue.";
+    if (pack.availabilityStatus === "BOOKED") return "This car has been booked and removed from editable packages.";
+    return "";
+  };
   const providerSections: Array<{ id: ProviderSection; label: string; description: string; count?: number; icon: ReactNode }> = [
-    { id: "overview", label: "Overview", description: "Tickets and package health", icon: <ClipboardCheck size={18} /> },
-    { id: "tickets", label: "Tickets", description: "Confirmed customer pickups", count: bookingTickets.length, icon: <TicketCheck size={18} /> },
-    { id: "submit", label: "Submit package", description: "Add car and route details", icon: <CarFront size={18} /> },
-    { id: "packages", label: "Manage packages", description: "Update live package data", count: visiblePackages.length, icon: <MapPin size={18} /> },
-    { id: "status", label: "Status", description: "Approval and admin notes", count: pendingPackages + needsChangesPackages, icon: <ShieldCheck size={18} /> }
+    { id: "overview", label: "Overview", description: "", icon: <ClipboardCheck size={18} /> },
+    { id: "tickets", label: "Tickets", description: "", count: bookingTickets.length, icon: <TicketCheck size={18} /> },
+    { id: "submit", label: "Submit package", description: "", icon: <CarFront size={18} /> },
+    { id: "packages", label: "Manage packages", description: "", count: visiblePackages.length, icon: <MapPin size={18} /> },
+    { id: "status", label: "Status", description: "", count: pendingPackages + needsChangesPackages, icon: <ShieldCheck size={18} /> }
   ];
   const activeProviderSection = providerSections.find((section) => section.id === activeSection) ?? providerSections[0];
 
@@ -1974,6 +2187,7 @@ export function ProviderDashboard() {
               <span>Customer ref</span>
               <span>Vehicle</span>
               <span>Status</span>
+              <span>Journey</span>
             </div>
             {bookingTickets.map((ticket) => (
               <div className="provider-data-row" key={ticket.id}>
@@ -1998,6 +2212,14 @@ export function ProviderDashboard() {
                 <div>
                   <small className="status-pill booked">{ticket.status.replace("_", " ").toLowerCase()}</small>
                   {ticket.specialRequests && <small>{ticket.specialRequests}</small>}
+                </div>
+                <div className="journey-actions">
+                  {ticket.status === "ASSIGNED" || ticket.status === "BOOKED" ? <button className="outline-button" type="button" onClick={() => void startTicketJourney(ticket.id)}>Start journey</button> : null}
+                  {ticket.status === "IN_PROGRESS" && <button className="outline-button" type="button" onClick={() => void updateTicketLocation(ticket.id)}>Update GPS</button>}
+                  {ticket.status === "IN_PROGRESS" && <button className="primary-button" type="button" onClick={() => void requestCompletionOtp(ticket.id)}>Completion OTP</button>}
+                  {completionOtps[ticket.id] && <strong className="journey-otp">OTP {completionOtps[ticket.id]}</strong>}
+                  {ticket.providerLatitude && ticket.providerLongitude && <a className="text-link" href={`https://www.google.com/maps?q=${ticket.providerLatitude},${ticket.providerLongitude}`} target="_blank" rel="noreferrer">Map</a>}
+                  {ticket.providerLocationUpdatedAt && <small>{new Date(ticket.providerLocationUpdatedAt).toLocaleString()}</small>}
                 </div>
               </div>
             ))}
@@ -2123,11 +2345,11 @@ export function ProviderDashboard() {
         <div className="panel-title-row">
           <div>
             <h3>Manage package details</h3>
-            <p className="muted">{packages.length} package{packages.length === 1 ? "" : "s"} submitted.</p>
+            <p className="muted">{manageablePackages.length} package{manageablePackages.length === 1 ? "" : "s"} — live packages are read-only, others can be edited.</p>
           </div>
         </div>
-        {visiblePackages.length === 0 && <p className="muted">No packages submitted yet.</p>}
-        {visiblePackages.length > 0 && (
+        {manageablePackages.length === 0 && <p className="provider-inline-notice success">No packages to manage yet.</p>}
+        {manageablePackages.length > 0 && (
           <div className="provider-data-table provider-package-table">
             <div className="provider-data-row provider-data-head provider-package-row">
               <span>Package</span>
@@ -2137,43 +2359,119 @@ export function ProviderDashboard() {
               <span>Status</span>
               <span>Action</span>
             </div>
-            {visiblePackages.map((pack) => (
-              <div className={`provider-data-row provider-package-row ${selectedManagePackage?.id === pack.id ? "selected" : ""}`} key={pack.id}>
-                <div>
-                  <strong>{pack.title}</strong>
-                  <small>{pack.destination}</small>
+            {manageablePackages.map((pack) => {
+              const isLive = pack.availabilityStatus === "AVAILABLE" || pack.availabilityStatus === "CANCELLATION_REQUESTED";
+              return (
+                <div className={`provider-data-row provider-package-row ${selectedManagePackage?.id === pack.id ? "selected" : ""}${isLive ? " provider-row--live" : ""}`} key={pack.id}>
+                  <div>
+                    <strong>{pack.title}</strong>
+                    <small>{pack.destination}</small>
+                    {packageUpdateMessage(pack) && <small className="provider-row-note">{packageUpdateMessage(pack)}</small>}
+                  </div>
+                  <div>
+                    <strong>{[pack.carNumber, pack.carModel].filter(Boolean).join(" - ") || "Vehicle pending"}</strong>
+                    <small>{(pack.carType ?? "FOUR_SEATER").replace("_", " ").toLowerCase()}</small>
+                  </div>
+                  <div>
+                    <strong>{pack.pickupAvailabilityMode === "SPECIFIC" ? `${pack.pickupStartTime ?? "--"} to ${pack.pickupEndTime ?? "--"}` : "Available 24/7"}</strong>
+                    <small>{pack.localPlaces ?? pack.summary}</small>
+                  </div>
+                  <div>
+                    <strong>{pack.pricePerKm ? `INR ${pack.pricePerKm}/km` : "Not set"}</strong>
+                    <small>{pack.providerPayout ? `Payout INR ${pack.providerPayout}` : "Payout pending"}</small>
+                  </div>
+                  <div>
+                    <small className={`status-pill ${(pack.availabilityStatus ?? "").toLowerCase().replace(/_/g, "-")}`}>
+                      {packageStatusLabel(pack.availabilityStatus)}
+                    </small>
+                  </div>
+                  {isLive ? (
+                    pack.availabilityStatus === "CANCELLATION_REQUESTED" ? (
+                      <span className="provider-row-action-note">Request pending</span>
+                    ) : (
+                      <button className="outline-button provider-row-action provider-row-action--danger" type="button" onClick={() => { setSelectedManagePackageId(pack.id); setCancelRequestPackageId(pack.id); }}>
+                        Request cancellation
+                      </button>
+                    )
+                  ) : (
+                    <button className="outline-button provider-row-action" type="button" onClick={() => { setSelectedManagePackageId(pack.id); setCancelRequestPackageId(null); }}>
+                      {savedPackageIds.has(pack.id) && !editingPackageIds.has(pack.id) ? "Edit again" : "Edit"}
+                    </button>
+                  )}
                 </div>
-                <div>
-                  <strong>{[pack.carNumber, pack.carModel].filter(Boolean).join(" - ") || "Vehicle pending"}</strong>
-                  <small>{(pack.carType ?? "FOUR_SEATER").replace("_", " ").toLowerCase()}</small>
-                </div>
-                <div>
-                  <strong>{pack.pickupAvailabilityMode === "SPECIFIC" ? `${pack.pickupStartTime ?? "--"} to ${pack.pickupEndTime ?? "--"}` : "Available 24/7"}</strong>
-                  <small>{pack.localPlaces ?? pack.summary}</small>
-                </div>
-                <div>
-                  <strong>{pack.pricePerKm ? `INR ${pack.pricePerKm}/km` : "Not set"}</strong>
-                  <small>{pack.providerPayout ? `Payout INR ${pack.providerPayout}` : "Payout pending"}</small>
-                </div>
-                <div>
-                  <small className={`status-pill ${(pack.availabilityStatus ?? "").toLowerCase().replace(/_/g, "-")}`}>
-                    {packageStatusLabel(pack.availabilityStatus)}
-                  </small>
-                </div>
-                <button className="outline-button provider-row-action" type="button" onClick={() => setSelectedManagePackageId(pack.id)}>
-                  Edit
-                </button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
         <div className="proposal-grid">
           {selectedManagePackage && (() => {
               const pack = selectedManagePackage;
+              const isLive = pack.availabilityStatus === "AVAILABLE" || pack.availabilityStatus === "CANCELLATION_REQUESTED";
+              const isSaved = savedPackageIds.has(pack.id) && !editingPackageIds.has(pack.id);
               const selectedDestination = selectedManageDestinations[pack.id] ?? pack.destination;
               const selectedPickupMode = selectedManagePickupModes[pack.id] ?? pack.pickupAvailabilityMode ?? "ALWAYS";
+
+              if (isLive) {
+                return (
+                  <div className="content-editor-card provider-selected-editor provider-live-panel" key={pack.id}>
+                    <div className="provider-editor-heading">
+                      <div>
+                        <strong>{pack.title}</strong>
+                        <small>{pack.destination} — <span className="provider-live-badge">Live</span></small>
+                      </div>
+                    </div>
+                    <p className="provider-live-notice">This package is currently live and cannot be edited. If an emergency requires cancellation, submit a request to admin below.</p>
+                    {pack.availabilityStatus === "CANCELLATION_REQUESTED" ? (
+                      <div className="provider-inline-notice provider-cancel-pending">
+                        <strong>Cancellation request already submitted.</strong>
+                        <span>Admin will review and process your request shortly.</span>
+                        {pack.reviewNotes && <small>{pack.reviewNotes}</small>}
+                      </div>
+                    ) : cancelRequestPackageId === pack.id ? (
+                      <div className="provider-cancel-form">
+                        <label className="provider-cancel-label">
+                          Reason for cancellation <span className="provider-cancel-required">(required)</span>
+                          <textarea
+                            className="provider-cancel-textarea"
+                            value={cancelReason}
+                            onChange={(event) => setCancelReason(event.target.value)}
+                            placeholder="Describe the emergency reason for cancelling this live package..."
+                            rows={4}
+                          />
+                        </label>
+                        <div className="provider-cancel-actions">
+                          <button
+                            type="button"
+                            className="primary-button provider-cancel-submit"
+                            disabled={submittingCancel || !cancelReason.trim()}
+                            onClick={() => void requestCancellation(pack.id)}
+                          >
+                            {submittingCancel ? "Submitting..." : "Submit cancellation request"}
+                          </button>
+                          <button type="button" className="outline-button" onClick={() => { setCancelRequestPackageId(null); setCancelReason(""); }}>
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button type="button" className="outline-button provider-cancel-trigger" onClick={() => setCancelRequestPackageId(pack.id)}>
+                        Request emergency cancellation
+                      </button>
+                    )}
+                  </div>
+                );
+              }
+
               return (
-                <form className="content-editor-card provider-selected-editor" key={pack.id} onSubmit={(event) => updatePackageDetails(event, pack.id)}>
+                <form className={`content-editor-card provider-selected-editor${isSaved ? " provider-editor--saved" : ""}`} key={pack.id} onSubmit={(event) => updatePackageDetails(event, pack.id)}>
+                  {isSaved && (
+                    <div className="provider-saved-banner">
+                      <span className="provider-saved-icon">✓</span>
+                      <span>Package updated successfully — sent for admin review.</span>
+                      <button type="button" className="outline-button" onClick={() => setEditingPackageIds((prev) => new Set(prev).add(pack.id))}>Edit</button>
+                    </div>
+                  )}
+                  <fieldset disabled={isSaved} style={{ border: "none", margin: 0, padding: 0, minWidth: 0 }}>
                   <div className="provider-editor-heading">
                     <div>
                       <strong>Edit selected package</strong>
@@ -2185,6 +2483,7 @@ export function ProviderDashboard() {
                     <span>Your rate: {pack.pricePerKm ? `INR ${pack.pricePerKm}/km` : "Not set"}</span>
                     <span>{pack.providerPayout ? `Payout INR ${pack.providerPayout}` : "Payout pending"}</span>
                   </div>
+                  {packageUpdateMessage(pack) && <div className="provider-inline-notice">{packageUpdateMessage(pack)}</div>}
                   <div className="provider-form-sections manage-package-sections">
                     <section className="provider-form-section">
                       <div className="section-kicker"><MapPin size={17} />Package data</div>
@@ -2242,8 +2541,8 @@ export function ProviderDashboard() {
                       <span className="form-helper">{pack.licenseDocumentUrl ? "Licence document already uploaded. Choose a file to replace it." : "Upload driving licence photo or PDF."}</span>
                     </section>
                   </div>
-                  {pack.reviewNotes && <small>{pack.reviewNotes}</small>}
-                  <button className="primary-button" type="submit">Update package</button>
+                  {!isSaved && <button className="primary-button" type="submit">Update package</button>}
+                  </fieldset>
                 </form>
               );
             })()}
@@ -2281,7 +2580,7 @@ export function ProviderDashboard() {
                           {packageStatusLabel(pack.availabilityStatus)}
                         </small>
                       </div>
-                      <p>{pack.reviewNotes || "No admin note."}</p>
+                      <p className="provider-status-note">{packageUpdateMessage(pack) || "No admin note."}</p>
                     </div>
                   ))}
                 </div>

@@ -41,6 +41,10 @@ public record TravelPackageResponse(
         String rcNumber,
         String rcDocumentUrl,
         UUID repostedFromId,
-        long providerCompletedCount
+        long providerCompletedCount,
+        String region,
+        String routeOrder,
+        Integer totalDistanceKm,
+        String subPlaces
 ) {
 }

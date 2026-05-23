@@ -24,6 +24,12 @@ public record ProviderTicketDTO(
         String pickupTime,
         String maskedCustomerRef,
         TicketStatus status,
+        String providerLatitude,
+        String providerLongitude,
+        Instant providerLocationUpdatedAt,
+        Instant journeyStartedAt,
+        Instant completionOtpExpiresAt,
+        Instant completedAt,
         Instant createdAt
 ) {
 }

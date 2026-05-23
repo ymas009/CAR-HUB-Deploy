@@ -83,6 +83,27 @@ public class Ticket {
     @Column(name = "car_color")
     private String carColor;
 
+    @Column(name = "provider_latitude")
+    private String providerLatitude;
+
+    @Column(name = "provider_longitude")
+    private String providerLongitude;
+
+    @Column(name = "provider_location_updated_at")
+    private Instant providerLocationUpdatedAt;
+
+    @Column(name = "journey_started_at")
+    private Instant journeyStartedAt;
+
+    @Column(name = "completion_otp")
+    private String completionOtp;
+
+    @Column(name = "completion_otp_expires_at")
+    private Instant completionOtpExpiresAt;
+
+    @Column(name = "completed_at")
+    private Instant completedAt;
+
     @Column(name = "masked_customer_ref", nullable = false)
     private String maskedCustomerRef;
 
@@ -131,6 +152,20 @@ public class Ticket {
     public void setCarModel(String carModel) { this.carModel = carModel; }
     public String getCarColor() { return carColor; }
     public void setCarColor(String carColor) { this.carColor = carColor; }
+    public String getProviderLatitude() { return providerLatitude; }
+    public void setProviderLatitude(String providerLatitude) { this.providerLatitude = providerLatitude; }
+    public String getProviderLongitude() { return providerLongitude; }
+    public void setProviderLongitude(String providerLongitude) { this.providerLongitude = providerLongitude; }
+    public Instant getProviderLocationUpdatedAt() { return providerLocationUpdatedAt; }
+    public void setProviderLocationUpdatedAt(Instant providerLocationUpdatedAt) { this.providerLocationUpdatedAt = providerLocationUpdatedAt; }
+    public Instant getJourneyStartedAt() { return journeyStartedAt; }
+    public void setJourneyStartedAt(Instant journeyStartedAt) { this.journeyStartedAt = journeyStartedAt; }
+    public String getCompletionOtp() { return completionOtp; }
+    public void setCompletionOtp(String completionOtp) { this.completionOtp = completionOtp; }
+    public Instant getCompletionOtpExpiresAt() { return completionOtpExpiresAt; }
+    public void setCompletionOtpExpiresAt(Instant completionOtpExpiresAt) { this.completionOtpExpiresAt = completionOtpExpiresAt; }
+    public Instant getCompletedAt() { return completedAt; }
+    public void setCompletedAt(Instant completedAt) { this.completedAt = completedAt; }
     public String getMaskedCustomerRef() { return maskedCustomerRef; }
     public void setMaskedCustomerRef(String maskedCustomerRef) { this.maskedCustomerRef = maskedCustomerRef; }
     public TicketStatus getStatus() { return status; }

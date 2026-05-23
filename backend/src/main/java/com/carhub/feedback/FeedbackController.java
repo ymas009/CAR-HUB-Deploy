@@ -24,4 +24,5 @@ public class FeedbackController {
     FeedbackResponse create(@Valid @RequestBody FeedbackRequest request) {
         return feedbackService.create(currentUser.require().id(), request);
     }
+
 }

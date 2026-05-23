@@ -7,5 +7,7 @@ import java.util.UUID;
 
 public interface FeedbackRepository extends JpaRepository<Feedback, UUID> {
     boolean existsByRequestIdAndCustomerId(UUID requestId, UUID customerId);
+    boolean existsByTicketIdAndCustomerId(UUID ticketId, UUID customerId);
     List<Feedback> findAllByOrderByCreatedAtDesc();
+    List<Feedback> findByModerationStatusOrderByCreatedAtDesc(String moderationStatus);
 }

@@ -79,6 +79,10 @@ export interface ApiPackage {
   rcDocumentUrl?: string;
   repostedFromId?: string;
   providerCompletedCount?: number;
+  region?: string;
+  routeOrder?: string;
+  totalDistanceKm?: number;
+  subPlaces?: string;
 }
 
 export interface BookingTicket {
@@ -107,6 +111,12 @@ export interface BookingTicket {
   customerEmail?: string;
   customerMobile?: string;
   travellersDetails?: string;
+  providerLatitude?: string;
+  providerLongitude?: string;
+  providerLocationUpdatedAt?: string;
+  journeyStartedAt?: string;
+  completionOtpExpiresAt?: string;
+  completedAt?: string;
   createdAt: string;
 }
 
@@ -187,9 +197,12 @@ export interface SupportTicket {
 
 export interface FeedbackItem {
   id: string;
-  requestId: string;
+  requestId?: string;
+  ticketId?: string;
   packageRating: number;
+  providerRating: number;
   supportRating: number;
+  comment?: string;
   moderationStatus: string;
   createdAt: string;
 }

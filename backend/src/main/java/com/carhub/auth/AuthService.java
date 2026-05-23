@@ -6,6 +6,7 @@ import com.carhub.auth.dto.AdminIdCurrentOtpConfirmRequest;
 import com.carhub.auth.dto.AdminIdNewOtpRequest;
 import com.carhub.auth.dto.AuthResponse;
 import com.carhub.auth.dto.ForgotPasswordRequest;
+import com.carhub.auth.dto.GoogleAuthRequest;
 import com.carhub.auth.dto.LoginRequest;
 import com.carhub.auth.dto.LogoutResponse;
 import com.carhub.auth.dto.OtpResponse;
@@ -27,6 +28,7 @@ import com.carhub.user.AppUser;
 import com.carhub.user.AppUserRepository;
 import com.carhub.user.CustomerProfile;
 import com.carhub.user.CustomerProfileRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -35,6 +37,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
 import java.time.Duration;
+import java.util.Base64;
 import java.util.Set;
 import java.time.Instant;
 import java.util.concurrent.ConcurrentHashMap;
@@ -50,6 +53,8 @@ public class AuthService {
     private final AuditService auditService;
     private final ProviderProfileRepository providerProfileRepository;
     private final JavaMailSender mailSender;
+    private final GoogleTokenVerifier googleTokenVerifier;
+    private final String googleClientId;
     private final SecureRandom secureRandom = new SecureRandom();
     private final ConcurrentMap<String, OtpChallenge> otpChallenges = new ConcurrentHashMap<>();
 
@@ -57,7 +62,9 @@ public class AuthService {
                        PasswordEncoder passwordEncoder, TokenService tokenService,
                        AuthSessionRepository authSessionRepository, AuditService auditService,
                        ProviderProfileRepository providerProfileRepository,
-                       JavaMailSender mailSender) {
+                       JavaMailSender mailSender,
+                       GoogleTokenVerifier googleTokenVerifier,
+                       @Value("${carhub.google.client-id:}") String googleClientId) {
         this.appUserRepository = appUserRepository;
         this.customerProfileRepository = customerProfileRepository;
         this.passwordEncoder = passwordEncoder;
@@ -66,6 +73,8 @@ public class AuthService {
         this.auditService = auditService;
         this.providerProfileRepository = providerProfileRepository;
         this.mailSender = mailSender;
+        this.googleTokenVerifier = googleTokenVerifier;
+        this.googleClientId = googleClientId;
     }
 
     @Transactional
@@ -148,6 +157,125 @@ public class AuthService {
         }
         auditService.recordAccessDecision(user.getId(), user.getRoles().toString(), "LOGIN_SUCCESS", user.getId(), "User logged in");
         return response(user);
+    }
+
+    @Transactional
+    public AuthResponse google(GoogleAuthRequest request) {
+        RoleCode requestedRole = parseGoogleRole(request.accountType());
+        GoogleTokenInfo tokenInfo = googleTokenVerifier.verify(request.credential());
+        validateGoogleToken(tokenInfo);
+
+        String googleId = tokenInfo.sub().trim();
+        String email = tokenInfo.email().trim().toLowerCase();
+        AppUser user = appUserRepository.findByGoogleId(googleId)
+                .map(existing -> requireGoogleRole(existing, requestedRole))
+                .orElseGet(() -> appUserRepository.findByEmailIgnoreCase(email)
+                        .map(existing -> linkGoogleAccount(existing, requestedRole, googleId))
+                        .orElseGet(() -> createGoogleUser(tokenInfo, requestedRole, email, googleId)));
+
+        auditService.recordAccessDecision(user.getId(), user.getRoles().toString(), "GOOGLE_LOGIN_SUCCESS", user.getId(), "User logged in with Google");
+        return response(user);
+    }
+
+    private RoleCode parseGoogleRole(String accountType) {
+        try {
+            RoleCode role = RoleCode.valueOf(accountType.trim().toUpperCase());
+            if (role == RoleCode.CUSTOMER || role == RoleCode.PROVIDER) {
+                return role;
+            }
+        } catch (IllegalArgumentException exception) {
+            // Handled below with a domain error code.
+        }
+        throw new BusinessRuleException("GOOGLE_ACCOUNT_TYPE_INVALID", "Google sign-in is available only for customer and provider accounts.");
+    }
+
+    private void validateGoogleToken(GoogleTokenInfo tokenInfo) {
+        if (googleClientId == null || googleClientId.isBlank()) {
+            throw new BusinessRuleException("GOOGLE_CLIENT_ID_MISSING", "Google sign-in is not configured.");
+        }
+        if (tokenInfo.aud() == null || !tokenInfo.aud().equals(googleClientId)) {
+            throw new BusinessRuleException("GOOGLE_AUDIENCE_INVALID", "Google sign-in is not configured for this app.");
+        }
+        if (tokenInfo.sub() == null || tokenInfo.sub().isBlank()) {
+            throw new BusinessRuleException("GOOGLE_SUBJECT_INVALID", "Google sign-in could not identify the account.");
+        }
+        if (tokenInfo.email() == null || tokenInfo.email().isBlank()) {
+            throw new BusinessRuleException("GOOGLE_EMAIL_MISSING", "Google sign-in did not return an email address.");
+        }
+        if (!Boolean.TRUE.equals(tokenInfo.emailVerified())) {
+            throw new BusinessRuleException("GOOGLE_EMAIL_NOT_VERIFIED", "Google email is not verified.");
+        }
+    }
+
+    private AppUser requireGoogleRole(AppUser user, RoleCode requestedRole) {
+        if (hasAdminOrSupportRole(user)) {
+            auditService.recordAccessDecision(user.getId(), user.getRoles().toString(), "GOOGLE_LOGIN_FAILED", user.getId(), "Administrative account blocked from Google login");
+            throw new BusinessRuleException("GOOGLE_ROLE_FORBIDDEN", "Google sign-in is available only for customer and provider accounts.");
+        }
+        if (!user.getRoles().contains(requestedRole)) {
+            auditService.recordAccessDecision(user.getId(), user.getRoles().toString(), "GOOGLE_LOGIN_FAILED", user.getId(), "Google account role mismatch");
+            throw new BusinessRuleException("GOOGLE_ROLE_MISMATCH", "This Google account belongs to a different CarHub workspace.");
+        }
+        return user;
+    }
+
+    private AppUser linkGoogleAccount(AppUser user, RoleCode requestedRole, String googleId) {
+        requireGoogleRole(user, requestedRole);
+        user.setGoogleId(googleId);
+        user.touch();
+        AppUser saved = appUserRepository.save(user);
+        auditService.recordAccessDecision(saved.getId(), saved.getRoles().toString(), "GOOGLE_ACCOUNT_LINKED", saved.getId(), "Existing account linked to Google");
+        return saved;
+    }
+
+    private AppUser createGoogleUser(GoogleTokenInfo tokenInfo, RoleCode requestedRole, String email, String googleId) {
+        AppUser user = new AppUser();
+        user.setEmail(email);
+        user.setFullName(googleDisplayName(tokenInfo, email));
+        user.setGoogleId(googleId);
+        user.setPasswordHash(passwordEncoder.encode(randomPassword()));
+        user.setRoles(Set.of(requestedRole));
+        AppUser saved = appUserRepository.save(user);
+
+        if (requestedRole == RoleCode.PROVIDER) {
+            ProviderProfile profile = new ProviderProfile();
+            profile.setUser(saved);
+            profile.setBusinessName(saved.getFullName());
+            profile.setContactPerson(saved.getFullName());
+            profile.setVerificationStatus("PENDING");
+            profile.setSuspended(false);
+            providerProfileRepository.save(profile);
+        } else {
+            CustomerProfile profile = new CustomerProfile();
+            profile.setUser(saved);
+            profile.setConsentTerms(false);
+            profile.setConsentPrivacy(false);
+            profile.setConsentControlledDataSharing(false);
+            profile.setProfileCompleted(false);
+            customerProfileRepository.save(profile);
+        }
+
+        auditService.recordAccessDecision(saved.getId(), requestedRole.name(), "GOOGLE_ACCOUNT_CREATED", saved.getId(), "Account created with Google");
+        return saved;
+    }
+
+    private boolean hasAdminOrSupportRole(AppUser user) {
+        return user.getRoles().contains(RoleCode.ADMIN)
+                || user.getRoles().contains(RoleCode.SUB_ADMIN)
+                || user.getRoles().contains(RoleCode.SUPPORT);
+    }
+
+    private String googleDisplayName(GoogleTokenInfo tokenInfo, String email) {
+        if (tokenInfo.name() != null && !tokenInfo.name().isBlank()) {
+            return tokenInfo.name().trim();
+        }
+        return email.substring(0, email.indexOf('@'));
+    }
+
+    private String randomPassword() {
+        byte[] bytes = new byte[32];
+        secureRandom.nextBytes(bytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 
     public OtpResponse forgotPassword(ForgotPasswordRequest request) {

@@ -1,6 +1,7 @@
 package com.carhub.feedback;
 
 import com.carhub.request.PackageRequest;
+import com.carhub.booking.Ticket;
 import com.carhub.user.AppUser;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -23,8 +24,12 @@ public class Feedback {
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "request_id", nullable = false)
+    @JoinColumn(name = "request_id")
     private PackageRequest request;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "ticket_id")
+    private Ticket ticket;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "customer_id", nullable = false)
@@ -35,6 +40,9 @@ public class Feedback {
 
     @Column(name = "support_rating")
     private int supportRating;
+
+    @Column(name = "provider_rating")
+    private int providerRating;
 
     private String comment;
 
@@ -47,14 +55,19 @@ public class Feedback {
     public UUID getId() { return id; }
     public PackageRequest getRequest() { return request; }
     public void setRequest(PackageRequest request) { this.request = request; }
+    public Ticket getTicket() { return ticket; }
+    public void setTicket(Ticket ticket) { this.ticket = ticket; }
     public AppUser getCustomer() { return customer; }
     public void setCustomer(AppUser customer) { this.customer = customer; }
     public int getPackageRating() { return packageRating; }
     public void setPackageRating(int packageRating) { this.packageRating = packageRating; }
     public int getSupportRating() { return supportRating; }
     public void setSupportRating(int supportRating) { this.supportRating = supportRating; }
+    public int getProviderRating() { return providerRating; }
+    public void setProviderRating(int providerRating) { this.providerRating = providerRating; }
     public String getComment() { return comment; }
     public void setComment(String comment) { this.comment = comment; }
     public String getModerationStatus() { return moderationStatus; }
+    public void setModerationStatus(String moderationStatus) { this.moderationStatus = moderationStatus; }
     public Instant getCreatedAt() { return createdAt; }
 }

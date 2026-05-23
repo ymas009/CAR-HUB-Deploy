@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -44,5 +45,11 @@ public class ProviderPackageController {
     @PostMapping("/{packageId}/repost")
     TravelPackageResponse repost(@PathVariable UUID packageId) {
         return packageCatalogService.repostPackage(currentUser.require().id(), packageId);
+    }
+
+    @PostMapping("/{packageId}/cancel-request")
+    TravelPackageResponse cancelRequest(@PathVariable UUID packageId, @RequestBody(required = false) Map<String, String> body) {
+        String reason = body != null ? body.getOrDefault("reason", "") : "";
+        return packageCatalogService.providerCancelRequest(currentUser.require().id(), packageId, reason);
     }
 }
