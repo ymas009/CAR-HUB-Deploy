@@ -17,6 +17,24 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
+      - name: Check required production secrets
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          missing=()
+          [ -z "$SSH_HOST" ] && missing+=("SSH_HOST")
+          [ -z "$SSH_USER" ] && missing+=("SSH_USER")
+          [ -z "$SSH_PRIVATE_KEY" ] && missing+=("SSH_PRIVATE_KEY")
+          [ -z "$DEPLOY_PATH" ] && missing+=("DEPLOY_PATH")
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "::error::Missing GitHub production environment secret(s): ${missing[*]}"
+            echo "Add them under Settings > Environments > production > Environment secrets."
+            exit 1
+          fi
+
       - name: Deploy to VPS with Docker Compose
         uses: appleboy/ssh-action@v1.2.0
         with:

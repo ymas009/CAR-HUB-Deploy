@@ -156,4 +156,12 @@ docker compose --env-file .env.production -f docker-compose.prod.yml --profile c
 docker compose --env-file .env.production -f docker-compose.prod.yml exec nginx nginx -s reload
 ```
 
-For GitHub Actions deployment, add repository environment `production` with secrets `SSH_HOST`, `SSH_USER`, `SSH_PRIVATE_KEY`, `SSH_PORT`, and `DEPLOY_PATH`. The deployment path must be the cloned repository directory on the VPS and must already contain `.env.production` and the issued TLS certificate. Every successful `main` CI run then builds and restarts the production Docker stack on the VPS.
+For GitHub Actions deployment, open `Settings > Environments`, create/select the `production` environment, and add these environment secrets:
+
+- `SSH_HOST`: VPS public IP address or hostname, for example `203.0.113.10`
+- `SSH_USER`: SSH login user on the VPS, for example `ubuntu`
+- `SSH_PRIVATE_KEY`: complete private SSH key including `BEGIN` and `END` lines
+- `SSH_PORT`: SSH port, usually `22` (optional; defaults to `22`)
+- `DEPLOY_PATH`: absolute cloned-repository path on the VPS, for example `/home/ubuntu/CAR-HUB-Deploy`
+
+The error `missing server host` means `SSH_HOST` was blank in the `production` environment used by the deployment job. The deployment path must already contain `.env.production` and the issued TLS certificate. Every successful `main` CI run then builds and restarts the production Docker stack on the VPS.
