@@ -48,8 +48,8 @@ export function Layout() {
   return (
     <div className="app-shell">
       <header className="site-header">
-        <NavLink to="/" className="brand" aria-label="CarHub home">
-          <img className="brand-logo" src="/carhub-logo.png" alt="CarHub" />
+        <NavLink to="/" className="ch-nav-brand" aria-label="CarHub home">
+          <span className="ch-brand-car">Car</span><span className="ch-brand-hub">Hub</span>
         </NavLink>
         <nav className="desktop-nav" aria-label="Primary navigation">
           {navItems.map((item) => (
@@ -60,60 +60,62 @@ export function Layout() {
         </nav>
         <div className="header-actions">
           <button
-            className="icon-button theme-toggle-btn"
+            className="ch-nav-icon-btn"
             onClick={toggleTheme}
             aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
             title={dark ? "Light mode" : "Dark mode"}
           >
-            {dark ? <Sun size={18} /> : <Moon size={18} />}
+            {dark ? <Sun size={17} /> : <Moon size={17} />}
           </button>
           {user ? (
             <>
-              <button className="ghost-button" onClick={() => navigate(dashboardPath)}>
-                <UserRound size={17} />
+              <button className="ch-nav-ghost-btn" onClick={() => navigate(dashboardPath)}>
+                <UserRound size={16} />
                 My Bookings
               </button>
-              <button className="outline-button" onClick={logout}>
+              <button className="ch-nav-outline-btn" onClick={logout}>
                 Logout
               </button>
             </>
           ) : (
             <div className="auth-menu">
               <button
-                className="primary-button nav-signin-button"
+                className="ch-nav-cta-btn"
                 onClick={() => setAuthMenuOpen((open) => !open)}
                 aria-expanded={authMenuOpen}
                 aria-haspopup="menu"
               >
-                Sign in
+                Sign In
               </button>
               {authMenuOpen && (
-                <div className="auth-menu-panel" role="menu">
+                <div className="auth-menu-panel ch-auth-panel" role="menu">
                   <button
                     type="button"
-                    className="auth-menu-item"
+                    className="ch-auth-item"
                     onClick={() => {
                       setAuthMenuOpen(false);
                       navigate("/login", { state: { role: "CUSTOMER", formMode: "login" } });
                     }}
                   >
+                    <UserRound size={15} />
                     <strong>Customer</strong>
                   </button>
                   <button
                     type="button"
-                    className="auth-menu-item"
+                    className="ch-auth-item"
                     onClick={() => {
                       setAuthMenuOpen(false);
                       window.location.assign(providerPortalPath("/login"));
                     }}
                   >
+                    <UserRound size={15} />
                     <strong>Provider</strong>
                   </button>
                 </div>
               )}
             </div>
           )}
-          <button className="icon-button menu-button" aria-label={menuOpen ? "Close menu" : "Open menu"} aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>
+          <button className="ch-nav-icon-btn menu-button" aria-label={menuOpen ? "Close menu" : "Open menu"} aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>
             {menuOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
         </div>

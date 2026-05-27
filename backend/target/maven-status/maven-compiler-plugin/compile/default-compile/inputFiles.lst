@@ -3,6 +3,7 @@ C:\Users\ADMIN\Desktop\CAR HUB\backend\src\main\java\com\carhub\admin\AdminFeedb
 C:\Users\ADMIN\Desktop\CAR HUB\backend\src\main\java\com\carhub\admin\AdminProviderAssignmentController.java
 C:\Users\ADMIN\Desktop\CAR HUB\backend\src\main\java\com\carhub\admin\AdminProviderController.java
 C:\Users\ADMIN\Desktop\CAR HUB\backend\src\main\java\com\carhub\admin\AdminRequestController.java
+C:\Users\ADMIN\Desktop\CAR HUB\backend\src\main\java\com\carhub\admin\AdminStatsController.java
 C:\Users\ADMIN\Desktop\CAR HUB\backend\src\main\java\com\carhub\admin\dto\AdminCustomerOverviewResponse.java
 C:\Users\ADMIN\Desktop\CAR HUB\backend\src\main\java\com\carhub\admin\dto\AdminCustomerUpdateRequest.java
 C:\Users\ADMIN\Desktop\CAR HUB\backend\src\main\java\com\carhub\admin\dto\AdminProviderOverviewResponse.java
@@ -22,6 +23,7 @@ C:\Users\ADMIN\Desktop\CAR HUB\backend\src\main\java\com\carhub\auth\dto\AdminId
 C:\Users\ADMIN\Desktop\CAR HUB\backend\src\main\java\com\carhub\auth\dto\AdminIdNewOtpRequest.java
 C:\Users\ADMIN\Desktop\CAR HUB\backend\src\main\java\com\carhub\auth\dto\AuthResponse.java
 C:\Users\ADMIN\Desktop\CAR HUB\backend\src\main\java\com\carhub\auth\dto\ForgotPasswordRequest.java
+C:\Users\ADMIN\Desktop\CAR HUB\backend\src\main\java\com\carhub\auth\dto\GoogleAuthRequest.java
 C:\Users\ADMIN\Desktop\CAR HUB\backend\src\main\java\com\carhub\auth\dto\LoginRequest.java
 C:\Users\ADMIN\Desktop\CAR HUB\backend\src\main\java\com\carhub\auth\dto\LogoutResponse.java
 C:\Users\ADMIN\Desktop\CAR HUB\backend\src\main\java\com\carhub\auth\dto\OtpResponse.java
@@ -30,11 +32,16 @@ C:\Users\ADMIN\Desktop\CAR HUB\backend\src\main\java\com\carhub\auth\dto\Passwor
 C:\Users\ADMIN\Desktop\CAR HUB\backend\src\main\java\com\carhub\auth\dto\PasswordResetRequest.java
 C:\Users\ADMIN\Desktop\CAR HUB\backend\src\main\java\com\carhub\auth\dto\RegisterRequest.java
 C:\Users\ADMIN\Desktop\CAR HUB\backend\src\main\java\com\carhub\auth\dto\RegistrationConfirmRequest.java
+C:\Users\ADMIN\Desktop\CAR HUB\backend\src\main\java\com\carhub\auth\GoogleTokenInfo.java
+C:\Users\ADMIN\Desktop\CAR HUB\backend\src\main\java\com\carhub\auth\GoogleTokenVerifier.java
 C:\Users\ADMIN\Desktop\CAR HUB\backend\src\main\java\com\carhub\booking\AdminTicketController.java
 C:\Users\ADMIN\Desktop\CAR HUB\backend\src\main\java\com\carhub\booking\BookingController.java
 C:\Users\ADMIN\Desktop\CAR HUB\backend\src\main\java\com\carhub\booking\BookingService.java
 C:\Users\ADMIN\Desktop\CAR HUB\backend\src\main\java\com\carhub\booking\CarType.java
 C:\Users\ADMIN\Desktop\CAR HUB\backend\src\main\java\com\carhub\booking\dto\BookingRequestDTO.java
+C:\Users\ADMIN\Desktop\CAR HUB\backend\src\main\java\com\carhub\booking\dto\CompletionOtpRequest.java
+C:\Users\ADMIN\Desktop\CAR HUB\backend\src\main\java\com\carhub\booking\dto\CompletionOtpResponse.java
+C:\Users\ADMIN\Desktop\CAR HUB\backend\src\main\java\com\carhub\booking\dto\LocationUpdateRequest.java
 C:\Users\ADMIN\Desktop\CAR HUB\backend\src\main\java\com\carhub\booking\dto\ProviderTicketDTO.java
 C:\Users\ADMIN\Desktop\CAR HUB\backend\src\main\java\com\carhub\booking\dto\TicketDTO.java
 C:\Users\ADMIN\Desktop\CAR HUB\backend\src\main\java\com\carhub\booking\dto\TravellerDTO.java
@@ -58,12 +65,14 @@ C:\Users\ADMIN\Desktop\CAR HUB\backend\src\main\java\com\carhub\content\dto\Cont
 C:\Users\ADMIN\Desktop\CAR HUB\backend\src\main\java\com\carhub\content\PublicContentController.java
 C:\Users\ADMIN\Desktop\CAR HUB\backend\src\main\java\com\carhub\domain\RequestStatus.java
 C:\Users\ADMIN\Desktop\CAR HUB\backend\src\main\java\com\carhub\domain\RoleCode.java
+C:\Users\ADMIN\Desktop\CAR HUB\backend\src\main\java\com\carhub\feedback\dto\FeedbackModerationRequest.java
 C:\Users\ADMIN\Desktop\CAR HUB\backend\src\main\java\com\carhub\feedback\dto\FeedbackRequest.java
 C:\Users\ADMIN\Desktop\CAR HUB\backend\src\main\java\com\carhub\feedback\dto\FeedbackResponse.java
 C:\Users\ADMIN\Desktop\CAR HUB\backend\src\main\java\com\carhub\feedback\Feedback.java
 C:\Users\ADMIN\Desktop\CAR HUB\backend\src\main\java\com\carhub\feedback\FeedbackController.java
 C:\Users\ADMIN\Desktop\CAR HUB\backend\src\main\java\com\carhub\feedback\FeedbackRepository.java
 C:\Users\ADMIN\Desktop\CAR HUB\backend\src\main\java\com\carhub\feedback\FeedbackService.java
+C:\Users\ADMIN\Desktop\CAR HUB\backend\src\main\java\com\carhub\feedback\PublicFeedbackController.java
 C:\Users\ADMIN\Desktop\CAR HUB\backend\src\main\java\com\carhub\location\LocationController.java
 C:\Users\ADMIN\Desktop\CAR HUB\backend\src\main\java\com\carhub\location\ReverseGeocodeResponse.java
 C:\Users\ADMIN\Desktop\CAR HUB\backend\src\main\java\com\carhub\location\ReverseGeocodeService.java

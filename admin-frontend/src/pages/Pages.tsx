@@ -390,9 +390,10 @@ export function AdminDashboard() {
   const [selectedPackageIdx, setSelectedPackageIdx] = useState(0);
   const [pendingStatus, setPendingStatus] = useState<Record<string, string>>({});
   const [filePreview, setFilePreview] = useState<Record<string, { image?: string; video?: string }>>({});
+  const [adminStats, setAdminStats] = useState<{ totalPackages: number; availablePackages: number; pendingReview: number; activeBookings: number; completedTrips: number; totalRevenue: number } | null>(null);
 
   async function loadAdminWorkspace() {
-    const [ticketData, feedbackData, auditData, pendingPackageData, allPackageData, bookingTicketData, contentPageData, providerData, customerData] = await Promise.all([
+    const [ticketData, feedbackData, auditData, pendingPackageData, allPackageData, bookingTicketData, contentPageData, providerData, customerData, statsData] = await Promise.all([
       api.get<SupportTicket[]>("/support/tickets").catch(() => []),
       api.get<FeedbackItem[]>("/admin/feedback").catch(() => []),
       api.get<AuditLogItem[]>("/admin/audit").catch(() => []),
@@ -401,7 +402,8 @@ export function AdminDashboard() {
       api.get<BookingTicket[]>("/admin/tickets").catch(() => []),
       api.get<ContentPage[]>("/admin/content").catch(() => []),
       api.get<ProviderProfile[]>("/admin/providers").catch(() => []),
-      api.get<CustomerOverview[]>("/admin/customers").catch(() => [])
+      api.get<CustomerOverview[]>("/admin/customers").catch(() => []),
+      api.get<{ totalPackages: number; availablePackages: number; pendingReview: number; activeBookings: number; completedTrips: number; totalRevenue: number }>("/admin/stats").catch(() => null)
     ]);
     setTickets(ticketData);
     setFeedback(feedbackData);
@@ -412,6 +414,7 @@ export function AdminDashboard() {
     setContentPages(contentPageData);
     setProviders(providerData);
     setCustomers(customerData);
+    setAdminStats(statsData);
   }
 
   useEffect(() => { void loadAdminWorkspace(); }, []);
@@ -593,6 +596,34 @@ export function AdminDashboard() {
   function renderOverview() {
     return (
       <>
+        {adminStats && (
+          <div className="admin-stats-banner">
+            <div className="admin-stats-card">
+              <span className="admin-stats-label">Total packages</span>
+              <strong className="admin-stats-value">{adminStats.totalPackages}</strong>
+            </div>
+            <div className="admin-stats-card accent-green">
+              <span className="admin-stats-label">Available now</span>
+              <strong className="admin-stats-value">{adminStats.availablePackages}</strong>
+            </div>
+            <div className="admin-stats-card accent-amber">
+              <span className="admin-stats-label">Pending review</span>
+              <strong className="admin-stats-value">{adminStats.pendingReview}</strong>
+            </div>
+            <div className="admin-stats-card accent-blue">
+              <span className="admin-stats-label">Active bookings</span>
+              <strong className="admin-stats-value">{adminStats.activeBookings}</strong>
+            </div>
+            <div className="admin-stats-card">
+              <span className="admin-stats-label">Trips completed</span>
+              <strong className="admin-stats-value">{adminStats.completedTrips}</strong>
+            </div>
+            <div className="admin-stats-card accent-green">
+              <span className="admin-stats-label">Revenue (completed)</span>
+              <strong className="admin-stats-value">₹{adminStats.totalRevenue.toLocaleString("en-IN")}</strong>
+            </div>
+          </div>
+        )}
         <div className="metric-grid admin-overview-grid">
           <Metric icon={<ShieldCheck />} label="Direct bookings" value={`${bookingTickets.length}`} tone="blue" onClick={() => openSection("bookings")} />
           <Metric icon={<EyeOff />} label="Live packages" value={`${livePackages.length}`} tone="green" onClick={() => openSection("packages")} />

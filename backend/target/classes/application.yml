@@ -37,6 +37,8 @@ management:
         include: health,info,metrics,prometheus
 
 carhub:
+  google:
+    client-id: ${CARHUB_GOOGLE_CLIENT_ID:}
   cors:
     allowed-origins: ${CARHUB_CORS_ALLOWED_ORIGINS:http://localhost:*,http://127.0.0.1:*,http://localhost:8088,http://localhost:8089}
   security:

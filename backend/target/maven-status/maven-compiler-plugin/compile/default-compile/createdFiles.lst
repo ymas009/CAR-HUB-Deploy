@@ -91,6 +91,7 @@ com\carhub\provider\ProviderAssignment.class
 com\carhub\support\dto\SupportTicketResponse.class
 com\carhub\config\DataSeeder.class
 com\carhub\booking\ProviderTicketController.class
+com\carhub\admin\AdminStatsController$AdminStatsResponse.class
 com\carhub\auth\dto\AuthResponse.class
 com\carhub\auth\dto\AdminIdCurrentOtpConfirmRequest.class
 com\carhub\location\ReverseGeocodeResponse.class
@@ -110,6 +111,7 @@ com\carhub\booking\dto\ProviderTicketDTO.class
 com\carhub\packagecatalog\TravelPackageRepository.class
 com\carhub\content\ContentPage.class
 com\carhub\provider\ProviderSharedPayload.class
+com\carhub\admin\AdminStatsController.class
 com\carhub\request\PackageRequestService.class
 com\carhub\audit\AuditController.class
 com\carhub\payment\dto\VerifyPaymentRequest.class

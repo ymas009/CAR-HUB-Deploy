@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CarHub — Template Preview (Video-Ready)</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,700&family=Inter:wght@400;500;600;700;800&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --dark-teal:   #124747;
+    --bright-teal: #00abab;
+    --yellow:      #ffdf2b;
+    --white:       #ffffff;
+    --muted:       rgba(255,255,255,0.72);
+  }
+
+  body { font-family: 'Inter', sans-serif; background: #0e1a1a; color: var(--white); overflow-x: hidden; }
+
+  /* ── PREVIEW BANNER ── */
+  .preview-banner {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 999;
+    background: var(--yellow); color: var(--dark-teal);
+    text-align: center; padding: 9px 20px; font-weight: 700; font-size: 13px;
+  }
+  .preview-banner span { opacity: 0.65; font-weight: 400; margin-left: 12px; font-size: 12px; }
+
+  /* ── NAV ── */
+  nav.site-nav {
+    position: fixed; top: 34px; left: 0; right: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 48px;
+    /* Subtle dark band so nav links always readable over any video */
+    background: linear-gradient(to bottom, rgba(10,30,30,0.80) 0%, transparent 100%);
+    backdrop-filter: blur(0px);
+  }
+  .nav-brand {
+    font-weight: 800; font-size: 20px;
+    letter-spacing: 2.5px; text-transform: uppercase; color: var(--white);
+  }
+  .nav-brand span { color: var(--yellow); }
+  .nav-links { display: flex; gap: 36px; }
+  .nav-links a {
+    color: rgba(255,255,255,0.9); text-decoration: none;
+    font-size: 14px; font-weight: 500; letter-spacing: 0.4px;
+    /* subtle shadow so it reads over bright video frames */
+    text-shadow: 0 1px 6px rgba(0,0,0,0.5);
+    transition: color 0.2s;
+  }
+  .nav-links a:hover { color: var(--yellow); }
+  .nav-cta {
+    background: var(--yellow); color: var(--dark-teal);
+    border: none; padding: 10px 26px;
+    font-weight: 700; font-size: 14px; cursor: pointer; letter-spacing: 0.4px;
+  }
+
+  /* ══════════════════════════════════
+     HERO — Video-ready layout
+     Strategy:
+       • Video fills the entire hero as a background layer
+       • A 3-part gradient overlay sits on top:
+           Left 55% → strong dark (protects text/buttons)
+           Middle    → soft fade
+           Right 40% → near-transparent (video shines through)
+       • Text also has text-shadow as a second safety net
+     ══════════════════════════════════ */
+  .hero {
+    min-height: 100vh;
+    position: relative;
+    display: flex; align-items: center;
+    overflow: hidden;
+  }
+
+  /* --- Layer 1: video / fallback bg --- */
+  .hero-video-layer {
+    position: absolute; inset: 0; z-index: 0;
+    /* Fallback gradient simulates a road/travel video scene */
+    background: linear-gradient(125deg,
+      #0a2828 0%,
+      #143f3f 25%,
+      #1a5a5a 50%,
+      #0e3535 75%,
+      #0a2828 100%);
+    background-size: 400% 400%;
+    animation: bgShift 12s ease infinite;
+  }
+  /* When you add real video, replace this div with:
+     <video autoplay muted loop playsinline class="hero-video-layer" style="object-fit:cover;width:100%;height:100%;">
+       <source src="/videos/hero-bg.mp4" type="video/mp4" />
+     </video>
+  */
+  @keyframes bgShift {
+    0%   { background-position: 0% 50%; }
+    50%  { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+  /* Simulated moving road lines to mimic video */
+  .hero-video-layer::after {
+    content: '';
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(ellipse 60% 40% at 75% 55%, rgba(0,171,171,0.22) 0%, transparent 65%),
+      radial-gradient(ellipse 40% 60% at 85% 20%, rgba(18,71,71,0.4) 0%, transparent 55%),
+      repeating-linear-gradient(
+        90deg,
+        transparent 0px, transparent 48%, rgba(255,255,255,0.03) 50%, transparent 52%, transparent 100%
+      );
+    animation: roadLines 6s linear infinite;
+  }
+  @keyframes roadLines {
+    from { background-position: 0 0, 0 0, 0 0; }
+    to   { background-position: 0 0, 0 0, 200px 0; }
+  }
+
+  /* --- Layer 2: directional overlay ---
+       Left side: heavy dark → text always readable
+       Right side: light/transparent → video visible           */
+  .hero-overlay {
+    position: absolute; inset: 0; z-index: 1;
+    background:
+      /* Bottom fade — keeps lower area readable */
+      linear-gradient(to top, rgba(10,30,30,0.65) 0%, transparent 35%),
+      /* LEFT PROTECTION: text lives here → strong coverage */
+      linear-gradient(to right,
+        rgba(10,30,30,0.88) 0%,
+        rgba(10,30,30,0.82) 30%,
+        rgba(10,30,30,0.55) 55%,
+        rgba(10,30,30,0.18) 72%,
+        transparent 100%
+      );
+  }
+
+  /* --- Layer 3: content --- */
+  .hero-content {
+    position: relative; z-index: 2;
+    max-width: 580px;
+    padding: 140px 48px 80px 64px;
+  }
+  .hero-eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: rgba(255,223,43,0.10);
+    border: 1px solid rgba(255,223,43,0.35);
+    color: var(--yellow); font-size: 11px; font-weight: 700;
+    letter-spacing: 2.5px; text-transform: uppercase;
+    padding: 7px 14px; margin-bottom: 24px;
+    /* solid bg on small viewports so video doesn't wash it out */
+    backdrop-filter: blur(6px);
+  }
+  .hero-title {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(44px, 5.5vw, 76px);
+    font-weight: 700; font-style: italic;
+    line-height: 1.08; margin-bottom: 20px; color: var(--white);
+    /* second safety net — text stays crisp over bright video frames */
+    text-shadow: 0 2px 24px rgba(0,0,0,0.55), 0 1px 4px rgba(0,0,0,0.4);
+  }
+  .hero-title .accent { color: var(--yellow); }
+  .hero-subtitle {
+    font-size: 16px; line-height: 1.7; color: var(--muted);
+    margin-bottom: 32px; max-width: 460px;
+    text-shadow: 0 1px 8px rgba(0,0,0,0.5);
+  }
+
+  /* Buttons: solid backgrounds = always visible regardless of video */
+  .hero-actions { display: flex; gap: 14px; margin-bottom: 36px; flex-wrap: wrap; }
+  .btn-primary {
+    background: var(--yellow); color: var(--dark-teal);
+    border: none; padding: 14px 30px;
+    font-weight: 700; font-size: 15px; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 8px;
+    transition: transform 0.2s, box-shadow 0.2s;
+    /* No opacity — always fully visible */
+  }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(255,223,43,0.4); }
+  .btn-outline {
+    background: rgba(10,30,30,0.5); color: var(--white);
+    border: 1.5px solid rgba(255,255,255,0.55);
+    padding: 14px 30px; font-weight: 600; font-size: 15px; cursor: pointer;
+    backdrop-filter: blur(8px);
+    transition: background 0.2s, border-color 0.2s;
+  }
+  .btn-outline:hover { background: rgba(255,255,255,0.12); border-color: var(--white); }
+
+  .hero-trust {
+    display: flex; gap: 20px; flex-wrap: wrap;
+  }
+  .hero-trust span {
+    font-size: 13px; color: rgba(255,255,255,0.8);
+    display: flex; align-items: center; gap: 7px;
+    text-shadow: 0 1px 6px rgba(0,0,0,0.5);
+  }
+  .trust-dot { width: 6px; height: 6px; background: var(--bright-teal); border-radius: 50%; flex-shrink: 0; }
+
+  /* Right side: visible area label (shows where video will be seen) */
+  .hero-video-hint {
+    position: absolute; right: 6%; top: 50%; transform: translateY(-50%);
+    z-index: 2; text-align: center; pointer-events: none;
+  }
+  .hero-video-hint .hint-label {
+    font-size: 11px; font-weight: 700; letter-spacing: 2px;
+    text-transform: uppercase; color: rgba(255,255,255,0.35);
+    border: 1px dashed rgba(255,255,255,0.2);
+    padding: 12px 20px; display: block;
+  }
+  .hero-video-hint .hint-sub {
+    font-size: 10px; color: rgba(255,255,255,0.22); margin-top: 8px; display: block;
+  }
+
+  /* ── STATS BAR ── */
+  .stats-bar {
+    background: var(--yellow); padding: 26px 48px;
+    display: flex; justify-content: center; gap: 72px; flex-wrap: wrap;
+  }
+  .stat-item { text-align: center; }
+  .stat-item strong { display: block; font-size: 26px; font-weight: 800; color: var(--dark-teal); }
+  .stat-item span { font-size: 11px; font-weight: 700; color: rgba(18,71,71,0.65); text-transform: uppercase; letter-spacing: 1.5px; }
+
+  /* ── ABOUT SECTION ── */
+  .about-section {
+    background: var(--bright-teal);
+    display: grid; grid-template-columns: 1fr 1fr; min-height: 75vh;
+  }
+  .about-photo-block {
+    background: linear-gradient(135deg, #007878 0%, #009898 50%, #005f5f 100%);
+    position: relative; overflow: hidden; min-height: 440px;
+  }
+  .about-photo-block::before {
+    content: ''; position: absolute; inset: 0;
+    background: radial-gradient(ellipse 70% 70% at 50% 50%, rgba(0,120,120,0.3) 0%, transparent 70%);
+    animation: pulseBg 4s ease-in-out infinite;
+  }
+  @keyframes pulseBg {
+    0%,100% { opacity: 0.6; } 50% { opacity: 1; }
+  }
+  .about-photo-block::after {
+    content: '🏔️'; position: absolute;
+    bottom: 22%; left: 50%; transform: translateX(-50%);
+    font-size: 90px; opacity: 0.12;
+  }
+  .about-photo-overlay {
+    position: absolute; inset: 0;
+    background: linear-gradient(to right, transparent 60%, var(--bright-teal) 100%);
+  }
+  .about-content {
+    display: flex; flex-direction: column; justify-content: center;
+    padding: 72px 60px 72px 44px;
+  }
+  .section-eyebrow {
+    font-size: 11px; font-weight: 700; letter-spacing: 3px;
+    text-transform: uppercase; color: var(--yellow); margin-bottom: 18px;
+  }
+  .section-title {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(32px, 3.5vw, 52px);
+    font-weight: 700; font-style: italic;
+    line-height: 1.12; margin-bottom: 24px; color: var(--white);
+  }
+  .section-title .accent { color: var(--yellow); }
+  .about-content p {
+    font-size: 15px; line-height: 1.75;
+    color: rgba(255,255,255,0.85); margin-bottom: 14px;
+  }
+
+  /* ── PACKAGES SECTION ── */
+  .packages-section { background: var(--dark-teal); padding: 88px 48px; }
+  .section-heading { text-align: center; margin-bottom: 56px; }
+  .section-heading p { font-size: 15px; color: var(--muted); margin-top: 14px; max-width: 500px; margin-inline: auto; }
+  .packages-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 26px; max-width: 1080px; margin: 0 auto 44px;
+  }
+  .package-card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.09);
+    overflow: hidden; position: relative;
+    transition: transform 0.3s, box-shadow 0.3s;
+  }
+  .package-card:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 18px 44px rgba(0,0,0,0.38);
+  }
+  /* White frame + yellow corner accents — from template */
+  .package-card-frame { border: 2px solid rgba(255,255,255,0.7); margin: 14px; position: relative; }
+  .package-card-frame::before,
+  .package-card-frame::after {
+    content: ''; position: absolute;
+    width: 16px; height: 16px;
+    border: 3px solid var(--yellow); z-index: 2;
+  }
+  .package-card-frame::before { top: -8px; left: -8px; border-right: none; border-bottom: none; }
+  .package-card-frame::after  { bottom: -8px; right: -8px; border-left: none; border-top: none; }
+  .package-card-inner { padding: 26px 22px 28px; }
+  .card-badge {
+    display: inline-block;
+    background: var(--bright-teal); color: var(--white);
+    font-size: 10px; font-weight: 700; letter-spacing: 1.5px;
+    text-transform: uppercase; padding: 4px 10px; margin-bottom: 14px;
+  }
+  .card-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 20px; font-weight: 700; font-style: italic;
+    color: var(--white); margin-bottom: 10px;
+  }
+  .card-desc { font-size: 13px; color: var(--muted); line-height: 1.65; margin-bottom: 18px; }
+  .card-price { font-size: 19px; font-weight: 800; color: var(--yellow); margin-bottom: 16px; }
+  .card-price span { font-size: 12px; font-weight: 400; color: var(--muted); }
+  .card-link {
+    color: var(--bright-teal); font-size: 13px; font-weight: 700;
+    text-decoration: underline; cursor: pointer;
+  }
+  .packages-cta { text-align: center; }
+
+  /* ── REGIONS ── */
+  .regions-section { background: #0e3535; padding: 72px 48px; }
+  .regions-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 18px; max-width: 960px; margin: 0 auto;
+  }
+  .region-card {
+    background: rgba(0,171,171,0.07);
+    border: 1px solid rgba(0,171,171,0.22);
+    padding: 28px 24px; cursor: pointer;
+    transition: background 0.2s, border-color 0.2s, transform 0.2s;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .region-card:hover {
+    background: rgba(0,171,171,0.15);
+    border-color: var(--bright-teal);
+    transform: translateY(-3px);
+  }
+  .region-icon {
+    width: 44px; height: 44px;
+    background: rgba(255,223,43,0.10);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+  }
+  .region-name { font-weight: 700; font-size: 16px; color: var(--white); }
+  .region-desc { font-size: 13px; color: var(--muted); line-height: 1.55; }
+  .region-cta { font-size: 13px; color: var(--bright-teal); font-weight: 600; }
+
+  /* ── HOW IT WORKS ── */
+  .workflow-section { background: var(--bright-teal); padding: 72px 48px; }
+  .workflow-steps {
+    display: flex; gap: 0; max-width: 860px; margin: 0 auto;
+    position: relative;
+  }
+  .workflow-steps::before {
+    content: ''; position: absolute;
+    top: 31px; left: 16%; right: 16%; height: 2px;
+    background: rgba(255,255,255,0.22);
+  }
+  .workflow-step { flex: 1; text-align: center; padding: 0 14px; }
+  .step-number {
+    width: 62px; height: 62px; border-radius: 50%;
+    background: var(--dark-teal); color: var(--yellow);
+    font-size: 20px; font-weight: 800;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 18px; border: 3px solid var(--yellow);
+    position: relative; z-index: 1;
+  }
+  .step-label { font-weight: 700; font-size: 14px; color: var(--white); margin-bottom: 6px; }
+  .step-desc { font-size: 12px; color: rgba(255,255,255,0.72); line-height: 1.5; }
+
+  /* ── SUPPORT BAND ── */
+  .support-band {
+    background: var(--yellow); padding: 64px 48px;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 32px; flex-wrap: wrap;
+  }
+  .support-copy h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 36px; font-weight: 700; font-style: italic;
+    color: var(--dark-teal); margin: 10px 0 6px;
+  }
+  .support-copy p { color: rgba(18,71,71,0.72); font-size: 15px; }
+  .support-copy .section-eyebrow { color: rgba(18,71,71,0.55); }
+  .support-actions { display: flex; gap: 14px; }
+  .btn-dark {
+    background: var(--dark-teal); color: var(--white);
+    border: none; padding: 14px 30px;
+    font-weight: 700; font-size: 14px; cursor: pointer;
+  }
+  .btn-dark-outline {
+    background: transparent; color: var(--dark-teal);
+    border: 2px solid var(--dark-teal);
+    padding: 14px 30px; font-weight: 700; font-size: 14px; cursor: pointer;
+  }
+
+  /* ── FOOTER ── */
+  footer {
+    background: #081c1c; padding: 48px;
+    display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 36px;
+  }
+  .footer-brand strong {
+    font-size: 17px; font-weight: 800; letter-spacing: 2.5px; text-transform: uppercase;
+  }
+  .footer-brand strong span { color: var(--yellow); }
+  .footer-brand p { margin-top: 12px; font-size: 13px; color: var(--muted); line-height: 1.65; }
+  .footer-col h4 {
+    font-size: 10px; font-weight: 700; letter-spacing: 2.5px;
+    text-transform: uppercase; color: var(--yellow); margin-bottom: 14px;
+  }
+  .footer-col a {
+    display: block; font-size: 13px; color: var(--muted);
+    text-decoration: none; margin-bottom: 10px;
+    transition: color 0.2s;
+  }
+  .footer-col a:hover { color: var(--white); }
+  .footer-base {
+    background: #081c1c; border-top: 1px solid rgba(255,255,255,0.07);
+    padding: 18px 48px; display: flex; justify-content: space-between;
+    font-size: 12px; color: rgba(255,255,255,0.3);
+  }
+
+  /* ── VIDEO NOTE BOX ── */
+  .video-note {
+    background: rgba(0,171,171,0.08);
+    border: 1px dashed rgba(0,171,171,0.4);
+    border-left: 3px solid var(--bright-teal);
+    padding: 14px 20px; margin: 20px 48px;
+    font-size: 13px; color: rgba(255,255,255,0.6);
+    display: flex; gap: 10px; align-items: flex-start;
+  }
+  .video-note strong { color: var(--bright-teal); }
+</style>
+</head>
+<body>
+
+<!-- PREVIEW BANNER -->
+<div class="preview-banner">
+  PREVIEW — CarHub Redesign · Video-Ready Layout
+  <span>Text + buttons stay visible on any video background · No project changes yet</span>
+</div>
+
+<!-- NAV -->
+<nav class="site-nav">
+  <div class="nav-brand">Car<span>Hub</span></div>
+  <div class="nav-links">
+    <a href="#">Home</a>
+    <a href="#">Packages</a>
+    <a href="#">About</a>
+    <a href="#">Contact</a>
+  </div>
+  <button class="nav-cta">Book Now</button>
+</nav>
+
+<!-- ══════════════ HERO (VIDEO LAYER DEMO) ══════════════ -->
+<section class="hero">
+
+  <!-- LAYER 1 — Video background (animated gradient simulates video) -->
+  <div class="hero-video-layer"></div>
+
+  <!-- LAYER 2 — Smart directional overlay:
+       Heavy on LEFT (text side) → fades to transparent on RIGHT (video visible) -->
+  <div class="hero-overlay"></div>
+
+  <!-- LAYER 3 — Text content: always readable -->
+  <div class="hero-content">
+    <div class="hero-eyebrow">
+      <span class="trust-dot"></span>
+      Curated departures from Pune
+    </div>
+    <h1 class="hero-title">
+      Premium <span class="accent">road trips</span><br/>from Pune.
+    </h1>
+    <p class="hero-subtitle">
+      10 curated routes — Nashik, Shirdi &amp; Western Ghats.<br/>
+      Fixed prices, verified cars, same-day pickup.
+    </p>
+    <div class="hero-actions">
+      <!-- Solid yellow = always visible over any video -->
+      <button class="btn-primary">Explore Packages &nbsp;›</button>
+      <!-- Blurred dark bg = readable over any video -->
+      <button class="btn-outline">Contact Support</button>
+    </div>
+    <div class="hero-trust">
+      <span><span class="trust-dot"></span> Fixed pricing</span>
+      <span><span class="trust-dot"></span> Verified cars</span>
+      <span><span class="trust-dot"></span> Instant confirmation</span>
+    </div>
+  </div>
+
+  <!-- RIGHT SIDE: video is visible here (low overlay) -->
+  <div class="hero-video-hint">
+    <span class="hint-label">VIDEO VISIBLE HERE</span>
+    <span class="hint-sub">Overlay fades out on this side</span>
+  </div>
+
+</section>
+
+<!-- VIDEO NOTE -->
+<div class="video-note">
+  <strong>▶</strong>
+  <span>
+    <strong>How the overlay works:</strong>
+    Left 55% has a strong dark layer — text &amp; buttons always readable.
+    Right 45% has almost no overlay — the video animation shows through clearly.
+    Nav bar has its own dark-to-transparent gradient so links stay visible at the top.
+  </span>
+</div>
+
+<!-- STATS BAR -->
+<div class="stats-bar">
+  <div class="stat-item"><strong>10+</strong><span>Routes</span></div>
+  <div class="stat-item"><strong>500+</strong><span>Trips done</span></div>
+  <div class="stat-item"><strong>4.9★</strong><span>Rating</span></div>
+  <div class="stat-item"><strong>24/7</strong><span>Support</span></div>
+</div>
+
+<!-- ABOUT -->
+<section class="about-section">
+  <div class="about-photo-block">
+    <div class="about-photo-overlay"></div>
+  </div>
+  <div class="about-content">
+    <div class="section-eyebrow">About CarHub</div>
+    <h2 class="section-title">
+      Travel <span class="accent">the Ghats</span><br/>through CarHub
+    </h2>
+    <p>CarHub has been offering the best road trip packages from Pune since 2021. We guarantee that every trip you book with us will be unique and unforgettable.</p>
+    <p>We connect you with verified local drivers who know every route, shortcut, and hidden gem along the way.</p>
+    <button class="btn-primary" style="margin-top:20px;">Learn More &nbsp;›</button>
+  </div>
+</section>
+
+<!-- PACKAGES -->
+<section class="packages-section">
+  <div class="section-heading">
+    <div class="section-eyebrow">Featured journeys</div>
+    <h2 class="section-title">Our <span class="accent">Packages</span></h2>
+    <p>We offer a wide variety of packages depending on your dream destination!</p>
+  </div>
+  <div class="packages-grid">
+    <div class="package-card">
+      <div class="package-card-frame">
+        <div class="package-card-inner">
+          <span class="card-badge">Popular</span>
+          <div class="card-title">Pune → Shirdi</div>
+          <div class="card-desc">Divine pilgrimage route with comfortable cab service and verified drivers.</div>
+          <div class="card-price">₹2,800 <span>/ trip</span></div>
+          <span class="card-link">Book Now ›</span>
+        </div>
+      </div>
+    </div>
+    <div class="package-card">
+      <div class="package-card-frame">
+        <div class="package-card-inner">
+          <span class="card-badge">Scenic</span>
+          <div class="card-title">Pune → Nashik</div>
+          <div class="card-desc">Explore vineyards, ancient temples and the banks of the Godavari river.</div>
+          <div class="card-price">₹3,200 <span>/ trip</span></div>
+          <span class="card-link">Book Now ›</span>
+        </div>
+      </div>
+    </div>
+    <div class="package-card">
+      <div class="package-card-frame">
+        <div class="package-card-inner">
+          <span class="card-badge">Adventure</span>
+          <div class="card-title">Pune → Lonavala</div>
+          <div class="card-desc">Western Ghats escape with waterfalls, valleys and misty mountain roads.</div>
+          <div class="card-price">₹1,800 <span>/ trip</span></div>
+          <span class="card-link">Book Now ›</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="packages-cta">
+    <button class="btn-primary">View All Packages &nbsp;›</button>
+  </div>
+</section>
+
+<!-- REGIONS -->
+<section class="regions-section">
+  <div class="section-heading">
+    <div class="section-eyebrow">Where we go</div>
+    <h2 class="section-title">Regions <span class="accent">we cover</span></h2>
+    <p>Pick a region to explore curated routes departing from Pune.</p>
+  </div>
+  <div class="regions-grid">
+    <div class="region-card">
+      <div class="region-icon">🕌</div>
+      <div class="region-name">Nashik</div>
+      <div class="region-desc">Vineyards, ghats, temples and the source of the Godavari.</div>
+      <div class="region-cta">Explore →</div>
+    </div>
+    <div class="region-card">
+      <div class="region-icon">✨</div>
+      <div class="region-name">Shirdi</div>
+      <div class="region-desc">Sacred pilgrimage to Sai Baba's temple and surrounding region.</div>
+      <div class="region-cta">Explore →</div>
+    </div>
+    <div class="region-card">
+      <div class="region-icon">🏔️</div>
+      <div class="region-name">Western Ghats</div>
+      <div class="region-desc">Lonavala, Mahabaleshwar, Lavasa — misty valleys and waterfalls.</div>
+      <div class="region-cta">Explore →</div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="workflow-section">
+  <div class="section-heading">
+    <div class="section-eyebrow">How CarHub works</div>
+    <h2 class="section-title">Choose, <span class="accent">book</span>, travel.</h2>
+  </div>
+  <div class="workflow-steps">
+    <div class="workflow-step">
+      <div class="step-number">1</div>
+      <div class="step-label">Choose a Package</div>
+      <div class="step-desc">Browse 10 curated routes from Pune</div>
+    </div>
+    <div class="workflow-step">
+      <div class="step-number">2</div>
+      <div class="step-label">Pick Your Date</div>
+      <div class="step-desc">Select travel date and pickup time</div>
+    </div>
+    <div class="workflow-step">
+      <div class="step-number">3</div>
+      <div class="step-label">Book &amp; Pay</div>
+      <div class="step-desc">Secure payment with instant confirmation</div>
+    </div>
+    <div class="workflow-step">
+      <div class="step-number">4</div>
+      <div class="step-label">Travel!</div>
+      <div class="step-desc">Driver picks you up, adventure begins</div>
+    </div>
+  </div>
+</section>
+
+<!-- SUPPORT BAND -->
+<div class="support-band">
+  <div class="support-copy">
+    <div class="section-eyebrow">Travel support</div>
+    <h2>Need help choosing?</h2>
+    <p>Contact support for route, pickup, or booking questions.</p>
+  </div>
+  <div class="support-actions">
+    <button class="btn-dark">Start Exploring</button>
+    <button class="btn-dark-outline">Talk to Us</button>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-brand">
+    <strong>Car<span>Hub</span></strong>
+    <p>Curated road trips from Pune with clear booking support. Fixed prices, verified cars, no surprises.</p>
+  </div>
+  <div class="footer-col">
+    <h4>Explore</h4>
+    <a href="#">All Packages</a>
+    <a href="#">About CarHub</a>
+    <a href="#">Contact Us</a>
+  </div>
+  <div class="footer-col">
+    <h4>Support</h4>
+    <a href="#">Privacy Policy</a>
+    <a href="#">Terms</a>
+    <a href="#">Cancellation &amp; Refund</a>
+  </div>
+  <div class="footer-col">
+    <h4>Help</h4>
+    <a href="#">Route assistance</a>
+    <a href="#">Booking support</a>
+    <a href="#">+91 20 4000 2400</a>
+  </div>
+</footer>
+<div class="footer-base">
+  <span>© 2025 CarHub Journeys</span>
+  <span>Secure booking · Pune, Maharashtra</span>
+</div>
+
+</body>
+</html>

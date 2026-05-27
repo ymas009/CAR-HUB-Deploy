@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(timeout 40 mvn spring-boot:run)"
+      "Bash(timeout 40 mvn spring-boot:run)",
+      "Bash(npx tsc *)"
     ]
   }
 }

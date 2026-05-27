@@ -1,4 +1,4 @@
-import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
+import React, { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 import { CredentialResponse, GoogleLogin } from "@react-oauth/google";
@@ -16,6 +16,7 @@ import {
   Clock3,
   Crown,
   Download,
+  Fuel,
   Headphones,
   Heart,
   Eye,
@@ -24,21 +25,26 @@ import {
   LifeBuoy,
   LockKeyhole,
   MapPin,
+  MapPinned,
+  MessageSquare,
   Menu,
   Mountain,
   PackageCheck,
   Search,
   ShieldCheck,
+  Share2,
   SlidersHorizontal,
   Star,
   SunMedium,
   TicketCheck,
+  TrendingUp,
   Users,
   IdCard,
   Waves,
-  X
+  X,
+  Zap
 } from "lucide-react";
-import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { z } from "zod";
 import { packages as fallbackPackages, workflow } from "../data/mockData";
 import { ApiRequestError, api } from "../services/api";
@@ -469,12 +475,56 @@ const HOME_CONFIDENCE_POINTS = [
   "Trip support"
 ] as const;
 
+const HOME_STATS = [
+  { value: "10", label: "Curated routes" },
+  { value: "3", label: "Regions covered" },
+  { value: "₹1,815", label: "Starting price" },
+  { value: "Same-day", label: "Pickup available" }
+] as const;
+
+const REGION_CARDS = [
+  { region: "Pune", desc: "Sinhagad, Lonavala, Mahabaleshwar & more", icon: Castle, color: "#fff0f1", accent: "#e50914" },
+  { region: "Nashik", desc: "Sula Vineyards, Trimbakeshwar, Kalsubai", icon: Mountain, color: "#f0f4ff", accent: "#1a56db" },
+  { region: "Shirdi", desc: "Sai Baba Temple, Shani Shingnapur, Nashik", icon: Star, color: "#fffbeb", accent: "#d97706" },
+  { region: "Multi-Region", desc: "Pune–Nashik–Shirdi grand circuit", icon: MapPinned, color: "#f0fdf4", accent: "#16a34a" }
+] as const;
+
+function parseRouteStops(routeOrder: string): string[] {
+  if (routeOrder.includes("→") || routeOrder.includes("->")) {
+    return routeOrder.split(/→|->/).map((s) => s.trim()).filter(Boolean);
+  }
+  const lines = routeOrder.split(/\n/).map((s) => s.trim()).filter(Boolean);
+  if (lines.length > 1) return lines;
+  return routeOrder.split(",").map((s) => s.trim()).filter(Boolean);
+}
+
+function StarRatingInput({ name, defaultValue = 5 }: { name: string; defaultValue?: number }) {
+  const [hovered, setHovered] = useState(0);
+  const [selected, setSelected] = useState(defaultValue);
+  return (
+    <div className="star-rating-input">
+      {[1, 2, 3, 4, 5].map((n) => (
+        <button
+          key={n}
+          type="button"
+          className={`star-btn ${n <= (hovered || selected) ? "active" : ""}`}
+          onMouseEnter={() => setHovered(n)}
+          onMouseLeave={() => setHovered(0)}
+          onClick={() => setSelected(n)}
+          aria-label={`${n} star${n !== 1 ? "s" : ""}`}
+        >
+          <Star size={22} fill={n <= (hovered || selected) ? "currentColor" : "none"} />
+        </button>
+      ))}
+      <input type="hidden" name={name} value={selected} />
+    </div>
+  );
+}
+
 export function HomePage() {
   const navigate = useNavigate();
   const { items } = usePackages();
   const featuredItems = items.length > 0 ? items.slice(0, 6) : fallbackPackages.slice(0, 6);
-  const destinationCount = new Set(featuredItems.map((item) => item.destination ?? item.place)).size;
-  const highlightedRegions = Array.from(new Set(featuredItems.map((item) => item.region).filter(Boolean))).slice(0, 3) as string[];
 
   return (
     <div className="page customer-home-page">
@@ -487,7 +537,7 @@ export function HomePage() {
             muted
             playsInline
             poster="/BG.png"
-            src="/lonavala-video.mp4"
+            src="/carhub-hero.mp4"
           />
           <div className="hero-overlay" aria-hidden="true"></div>
         </div>
@@ -512,7 +562,7 @@ export function HomePage() {
               Premium road trips from Pune.
             </motion.h1>
             <motion.p variants={fadeUp}>
-              Explore curated escapes, compare quickly, and book with confidence.
+              10 curated routes — Nashik, Shirdi &amp; Western Ghats. Fixed prices, verified cars, same-day pickup.
             </motion.p>
             <motion.div className="customer-home-hero-actions" variants={fadeUp}>
               <button className="primary-button large" onClick={() => navigate("/packages")}>
@@ -529,47 +579,23 @@ export function HomePage() {
                 </span>
               ))}
             </motion.div>
+            <motion.div className="home-stats-bar" variants={fadeUp}>
+              {HOME_STATS.map((stat) => (
+                <div key={stat.label} className="home-stat-item">
+                  <strong>{stat.value}</strong>
+                  <span>{stat.label}</span>
+                </div>
+              ))}
+            </motion.div>
           </div>
-          <motion.aside className="customer-home-overview-card" variants={fadeUp}>
-            <div className="customer-home-overview-head">
-              <span className="eyebrow">Overview</span>
-              <strong>Quick trip scan</strong>
-            </div>
-            <div className="customer-home-overview-stats">
-              <div>
-                <strong>{featuredItems.length}</strong>
-                <span>Curated routes</span>
-              </div>
-              <div>
-                <strong>{destinationCount}</strong>
-                <span>Destinations</span>
-              </div>
-              <div>
-                <strong>7 days</strong>
-                <span>Support week</span>
-              </div>
-            </div>
-            <div className="customer-home-overview-list">
-              <span className="customer-home-overview-label">Popular regions</span>
-              <div className="customer-home-overview-chips">
-                {(highlightedRegions.length > 0 ? highlightedRegions : ["Pune", "Konkan", "Nashik"]).map((region) => (
-                  <span key={region}>{region}</span>
-                ))}
-              </div>
-            </div>
-            <div className="customer-home-overview-note">
-              <Headphones size={16} />
-              <p>Support for route and booking help.</p>
-            </div>
-          </motion.aside>
         </motion.div>
       </section>
 
       <section className="customer-home-feature-band">
         <div className="customer-home-section-heading">
           <span className="eyebrow">Why CarHub</span>
-          <h2>Plan faster. Travel clearer.</h2>
-          <p>Clean packages, clear routes, and visible support.</p>
+          <h2>Travel smarter from Pune.</h2>
+          <p>Fixed prices, verified cars, and live tracking — no surprises.</p>
         </div>
         <div className="customer-home-feature-grid">
           {HOME_BENEFITS.map((item, index) => {
@@ -588,6 +614,38 @@ export function HomePage() {
                 <h3>{item.title}</h3>
                 <p>{item.description}</p>
               </motion.article>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="customer-home-regions-band">
+        <div className="customer-home-section-heading">
+          <span className="eyebrow">Where we go</span>
+          <h2>Regions we cover.</h2>
+          <p>Pick a region to explore curated routes departing from Pune.</p>
+        </div>
+        <div className="home-region-grid">
+          {REGION_CARDS.map((card, index) => {
+            const Icon = card.icon;
+            return (
+              <motion.button
+                key={card.region}
+                className="home-region-card"
+                initial="hidden"
+                whileInView="visible"
+                viewport={{ once: true, margin: "-40px" }}
+                variants={fadeUp}
+                transition={{ delay: index * 0.07 }}
+                onClick={() => navigate(`/packages?region=${encodeURIComponent(card.region)}`)}
+              >
+                <span className="home-region-icon">
+                  <Icon size={20} />
+                </span>
+                <strong className="home-region-name">{card.region}</strong>
+                <p className="home-region-desc">{card.desc}</p>
+                <span className="home-region-cta">Explore <ArrowRight size={14} /></span>
+              </motion.button>
             );
           })}
         </div>
@@ -645,11 +703,29 @@ export function HomePage() {
 const REGIONS = ["Pune", "Nashik", "Shirdi", "Multi-Region"] as const;
 
 export function ExplorePage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const { items, loading, source } = usePackages();
-  const [query, setQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
+  const [query, setQuery] = useState(() => searchParams.get("q") ?? "");
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(() => searchParams.get("category") ?? null);
+  const [selectedRegion, setSelectedRegion] = useState<string | null>(() => searchParams.get("region") ?? null);
+  const [selectedDuration, setSelectedDuration] = useState<number | null>(() => {
+    const d = searchParams.get("duration");
+    return d ? Number(d) : null;
+  });
+  const [selectedPrice, setSelectedPrice] = useState<string | null>(() => searchParams.get("price") ?? null);
+  const [selectedCarType, setSelectedCarType] = useState<string | null>(() => searchParams.get("carType") ?? null);
   const [chipRail, setChipRail] = useState<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const params: Record<string, string> = {};
+    if (query) params.q = query;
+    if (selectedCategory) params.category = selectedCategory;
+    if (selectedRegion) params.region = selectedRegion;
+    if (selectedDuration) params.duration = String(selectedDuration);
+    if (selectedPrice) params.price = selectedPrice;
+    if (selectedCarType) params.carType = selectedCarType;
+    setSearchParams(params, { replace: true });
+  }, [query, selectedCategory, selectedRegion, selectedDuration, selectedPrice, selectedCarType, setSearchParams]);
 
   const categories = useMemo(() => {
     return Array.from(new Set(items.map(i => i.category))).filter(Boolean);
@@ -660,9 +736,17 @@ export function ExplorePage() {
       const matchesSearch = matchesPackageQuery(item, query);
       const matchesCategory = !selectedCategory || item.category === selectedCategory;
       const matchesRegion = !selectedRegion || item.region === selectedRegion;
-      return matchesSearch && matchesCategory && matchesRegion;
+      const matchesDuration = !selectedDuration || (item.durationDays ?? 0) === selectedDuration;
+      const matchesCarType = !selectedCarType || item.carType === selectedCarType;
+      const price = item.startingPrice ?? 0;
+      const matchesPrice = !selectedPrice || (
+        selectedPrice === "under3k" ? price < 3000 :
+        selectedPrice === "3k-6k" ? price >= 3000 && price <= 6000 :
+        selectedPrice === "over6k" ? price > 6000 : true
+      );
+      return matchesSearch && matchesCategory && matchesRegion && matchesDuration && matchesCarType && matchesPrice;
     });
-  }, [items, query, selectedCategory, selectedRegion]);
+  }, [items, query, selectedCategory, selectedRegion, selectedDuration, selectedPrice, selectedCarType]);
 
   const quickFilters = [
     { label: "All Trips", value: null, icon: CalendarDays },
@@ -680,10 +764,15 @@ export function ExplorePage() {
     chipRail?.scrollBy({ left: 220, behavior: "smooth" });
   }
 
+  const hasActiveFilters = !!(query || selectedCategory || selectedRegion || selectedDuration || selectedPrice || selectedCarType);
+
   function clearFilters() {
     setQuery("");
     setSelectedCategory(null);
     setSelectedRegion(null);
+    setSelectedDuration(null);
+    setSelectedPrice(null);
+    setSelectedCarType(null);
   }
 
   return (
@@ -777,6 +866,60 @@ export function ExplorePage() {
           </div>
           <button type="button" className="explore-scroll-arrow" aria-label="More categories" onClick={scrollCategories}>&gt;</button>
         </div>
+
+        <div className="explore-filter-pills-row">
+          <div className="explore-filter-group">
+            <span className="explore-filter-label"><Clock3 size={13} />Duration</span>
+            {[1, 2, 3].map((d) => (
+              <button
+                key={d}
+                type="button"
+                className={`explore-filter-pill ${selectedDuration === d ? "active" : ""}`}
+                onClick={() => setSelectedDuration(selectedDuration === d ? null : d)}
+              >
+                {d} Day{d > 1 ? "s" : ""}
+              </button>
+            ))}
+          </div>
+          <div className="explore-filter-group">
+            <span className="explore-filter-label"><TrendingUp size={13} />Price</span>
+            {[
+              { label: "Under ₹3K", value: "under3k" },
+              { label: "₹3K–₹6K", value: "3k-6k" },
+              { label: "₹6K+", value: "over6k" }
+            ].map((p) => (
+              <button
+                key={p.value}
+                type="button"
+                className={`explore-filter-pill ${selectedPrice === p.value ? "active" : ""}`}
+                onClick={() => setSelectedPrice(selectedPrice === p.value ? null : p.value)}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+          <div className="explore-filter-group">
+            <span className="explore-filter-label"><CarFront size={13} />Car type</span>
+            {[
+              { label: "4-Seater", value: "FOUR_SEATER" },
+              { label: "6-Seater", value: "SIX_SEATER" }
+            ].map((c) => (
+              <button
+                key={c.value}
+                type="button"
+                className={`explore-filter-pill ${selectedCarType === c.value ? "active" : ""}`}
+                onClick={() => setSelectedCarType(selectedCarType === c.value ? null : c.value)}
+              >
+                {c.label}
+              </button>
+            ))}
+          </div>
+          {hasActiveFilters && (
+            <button type="button" className="explore-clear-all-btn" onClick={clearFilters}>
+              <X size={14} />Clear all
+            </button>
+          )}
+        </div>
       </section>
       {source === "unavailable" && (
         <div className="notice-panel">
@@ -806,11 +949,11 @@ export function ExplorePage() {
               <div className="explore-results-actions">
                 <div className="explore-results-count">
                   <SlidersHorizontal size={16} />
-                  <span>{selectedCategory ?? "All categories"}</span>
+                  <span>{filteredItems.length} result{filteredItems.length !== 1 ? "s" : ""}</span>
                 </div>
-                {(query || selectedCategory) && (
+                {hasActiveFilters && (
                   <button className="explore-reset-button" type="button" onClick={clearFilters}>
-                    Clear
+                    <X size={13} />Clear filters
                   </button>
                 )}
               </div>
@@ -1025,18 +1168,16 @@ export function PackageDetailsPage() {
     );
   }
 
+  const routeStops = selected.routeOrder ? parseRouteStops(selected.routeOrder) : [];
+  const priceDisplay = selected.startingPrice
+    ? `₹${selected.startingPrice.toLocaleString("en-IN")}`
+    : "Price on request";
+
   return (
     <div className="page padded-page">
       <section className="detail-hero">
         {selected.video ? (
-          <video
-            src={selected.video}
-            autoPlay
-            loop
-            muted
-            playsInline
-            aria-label={selected.place}
-          />
+          <video src={selected.video} autoPlay loop muted playsInline aria-label={selected.place} />
         ) : (
           <img src={selected.image} alt={selected.place} />
         )}
@@ -1046,38 +1187,98 @@ export function PackageDetailsPage() {
             <span className="eyebrow">{selected.category}</span>
           </div>
           <h1>{selected.place}</h1>
-          <p>{selected.highlights}. Start your journey from Pune.</p>
-          <div className="detail-facts">
-            <span><MapPin size={17} />{selected.distance_from_pune}</span>
-            <span><Clock3 size={17} />{selected.travel_time}</span>
+
+          <div className="detail-stat-pills">
+            <span className="detail-stat-pill"><MapPin size={14} />{selected.distance_from_pune}</span>
+            <span className="detail-stat-pill"><Clock3 size={14} />{selected.travel_time}</span>
             {selected.carType && (
-              <span><CarFront size={17} />{selected.carType === "SIX_SEATER" ? "6-Seater SUV" : "4-Seater"}</span>
+              <span className="detail-stat-pill"><CarFront size={14} />{selected.carType === "SIX_SEATER" ? "6-Seater SUV" : "4-Seater"}</span>
             )}
-            <span><LifeBuoy size={17} />Support visible</span>
+            <span className="detail-stat-pill"><LifeBuoy size={14} />Support included</span>
           </div>
+
+          <p className="detail-summary">{selected.highlights}. Departing from Pune.</p>
+
+          <div className="detail-price-block">
+            <span className="detail-price-label">Package price</span>
+            <strong className="detail-price-value">{priceDisplay}</strong>
+          </div>
+
           {selected.subPlaces && (
             <div className="detail-subplaces">
               <h3>Places covered</h3>
               <div className="subplaces-list">
                 {selected.subPlaces.split(",").map((place) => (
                   <span key={place.trim()} className="subplace-chip">
-                    <MapPin size={11} />
-                    {place.trim()}
+                    <MapPin size={11} />{place.trim()}
                   </span>
                 ))}
               </div>
             </div>
           )}
-          {selected.routeOrder && (
-            <div className="detail-route">
-              <h3>Route details</h3>
-              <p>{selected.routeOrder}</p>
+
+          {routeStops.length > 0 && (
+            <div className="detail-timeline">
+              <h3>Your itinerary</h3>
+              <div className="timeline-list">
+                {routeStops.map((stop, i) => (
+                  <div key={i} className="timeline-item">
+                    <div className="timeline-node">
+                      <div className="timeline-dot" />
+                      {i < routeStops.length - 1 && <div className="timeline-line" />}
+                    </div>
+                    <div className="timeline-content">
+                      <strong>{stop}</strong>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
-          <button className="primary-button large" onClick={() => navigate(user?.role === "CUSTOMER" ? `/booking/${selected.id}` : "/login", { state: { returnTo: `/booking/${selected.id}` } })}>
-            Book Now
-            <ArrowRight size={18} />
-          </button>
+
+          <div className="detail-includes-grid">
+            <div className="detail-includes-block">
+              <h3>Included in price</h3>
+              <ul className="detail-includes-list">
+                <li><CheckCircle2 size={14} />Driver</li>
+                <li><Fuel size={14} />Fuel charges</li>
+                <li><ShieldCheck size={14} />Toll &amp; parking</li>
+              </ul>
+            </div>
+            <div className="detail-includes-block">
+              <h3>What to bring</h3>
+              <ul className="detail-includes-list bring">
+                <li><Zap size={14} />Water &amp; snacks</li>
+                <li><IdCard size={14} />ID proof</li>
+                <li><ShieldCheck size={14} />Comfortable shoes</li>
+              </ul>
+            </div>
+          </div>
+
+          {user?.role === "CUSTOMER" ? (
+            <button
+              className="primary-button large detail-book-btn"
+              onClick={() => navigate(`/booking/${selected.id}`)}
+            >
+              Book Now — {priceDisplay}
+              <ArrowRight size={18} />
+            </button>
+          ) : (
+            <div className="detail-login-prompt">
+              <LockKeyhole size={18} />
+              <div>
+                <strong>Sign in to book this trip</strong>
+                <p>Create an account or log in to confirm your seat.</p>
+              </div>
+              <Link
+                className="primary-button"
+                to="/login"
+                state={{ returnTo: `/booking/${selected.id}` }}
+              >
+                Sign in <ArrowRight size={16} />
+              </Link>
+            </div>
+          )}
         </div>
       </section>
     </div>
@@ -2086,6 +2287,14 @@ export function CustomerDashboard() {
                     <button className="outline-button" type="button" onClick={() => void downloadTicketPdf(ticket.id, ticket.ticketNumber)}>
                       <Download size={15} />Download PDF
                     </button>
+                    <a
+                      className="outline-button"
+                      href={`https://wa.me/?text=${encodeURIComponent(`My CarHub trip: ${ticket.packageName} on ${ticket.pickupDate ?? "TBD"} from ${ticket.pickupLocation ?? "pickup point"}. Ticket: ${ticket.ticketNumber}`)}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <MessageSquare size={15} />Share via WhatsApp
+                    </a>
                   </div>
                 </div>
               )}
@@ -2190,24 +2399,18 @@ export function CustomerDashboard() {
             </div>
             <form className="cust-feedback-form" onSubmit={(e) => submitTicketFeedback(e, ticket.id)}>
               <div className="cust-ratings-row">
-                <label className="cust-rating-label">
+                <div className="cust-rating-label">
                   <span>Package</span>
-                  <select name="packageRating" defaultValue="5">
-                    {[5, 4, 3, 2, 1].map((r) => <option key={r} value={r}>{r} / 5</option>)}
-                  </select>
-                </label>
-                <label className="cust-rating-label">
+                  <StarRatingInput name="packageRating" defaultValue={5} />
+                </div>
+                <div className="cust-rating-label">
                   <span>Provider</span>
-                  <select name="providerRating" defaultValue="5">
-                    {[5, 4, 3, 2, 1].map((r) => <option key={r} value={r}>{r} / 5</option>)}
-                  </select>
-                </label>
-                <label className="cust-rating-label">
+                  <StarRatingInput name="providerRating" defaultValue={5} />
+                </div>
+                <div className="cust-rating-label">
                   <span>Support</span>
-                  <select name="supportRating" defaultValue="5">
-                    {[5, 4, 3, 2, 1].map((r) => <option key={r} value={r}>{r} / 5</option>)}
-                  </select>
-                </label>
+                  <StarRatingInput name="supportRating" defaultValue={5} />
+                </div>
               </div>
               <textarea name="comment" placeholder="Share your journey experience…" rows={3} />
               <button className="primary-button" type="submit"><Star size={16} />Submit feedback</button>
