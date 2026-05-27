@@ -38,6 +38,7 @@ Thumbs.db
 
 # ----- Docker -----
 docker-compose.override.yml
+certbot/
 
 # ----- Sensitive Configuration -----
 application-prod.properties

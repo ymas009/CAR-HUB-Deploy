@@ -121,3 +121,39 @@ Still required before launch:
 - Add deeper integration/E2E tests and security testing.
 - Harden token lifecycle further with refresh rotation or secure cookie sessions.
 - Add real notification, file upload scanning, payment, backup/restore, monitoring, and alerting.
+
+## Production Deployment For aitourism.in
+
+The production Docker setup serves:
+
+- Customer website: `https://aitourism.in` and `https://www.aitourism.in`
+- Admin portal: `https://admin.aitourism.in`
+- Provider portal: `https://provider.aitourism.in`
+- Spring Boot API: `https://aitourism.in/api/v1`
+
+Point DNS `A` records for `@`, `www`, `admin`, and `provider` to the VPS. On the VPS install Git and Docker Compose, clone this repository, then create the secret environment file:
+
+```bash
+cp .env.production.example .env.production
+nano .env.production
+```
+
+Do not commit `.env.production`. Set a strong `POSTGRES_PASSWORD` and a long random `CARHUB_JWT_SECRET`; fill Google, mail, and Razorpay values when those features are enabled.
+
+First HTTPS certificate setup:
+
+```bash
+mkdir -p certbot/www certbot/conf
+NGINX_CONF=./nginx/aitourism.bootstrap.conf docker compose --env-file .env.production -f docker-compose.prod.yml up -d nginx
+docker compose --env-file .env.production -f docker-compose.prod.yml --profile certificate run --rm certbot certonly --webroot -w /var/www/certbot -d aitourism.in -d www.aitourism.in -d admin.aitourism.in -d provider.aitourism.in --email YOUR_EMAIL --agree-tos --no-eff-email
+docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
+```
+
+Renew the Let's Encrypt certificate from cron, then reload Nginx:
+
+```bash
+docker compose --env-file .env.production -f docker-compose.prod.yml --profile certificate run --rm certbot renew
+docker compose --env-file .env.production -f docker-compose.prod.yml exec nginx nginx -s reload
+```
+
+For GitHub Actions deployment, add repository environment `production` with secrets `SSH_HOST`, `SSH_USER`, `SSH_PRIVATE_KEY`, `SSH_PORT`, and `DEPLOY_PATH`. The deployment path must be the cloned repository directory on the VPS and must already contain `.env.production` and the issued TLS certificate. Every successful `main` CI run then builds and restarts the production Docker stack on the VPS.

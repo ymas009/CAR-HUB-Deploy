@@ -5,12 +5,9 @@ spring:
   application:
     name: carhub-backend
   datasource:
-    url: ${CARHUB_DB_URL:jdbc:postgresql://ep-shiny-moon-aoxwestq-pooler.c-2.ap-southeast-1.aws.neon.tech/neondb?sslmode=require}
-    username: ${CARHUB_DB_USER:neondb_owner}
-    password: ${CARHUB_DB_PASSWORD:npg_20xQRSlcueYB}
-    hikari:
-      data-source-properties:
-        sslmode: require
+    url: ${CARHUB_DB_URL:jdbc:postgresql://localhost:5432/carhub}
+    username: ${CARHUB_DB_USER:carhub}
+    password: ${CARHUB_DB_PASSWORD:carhub}
   mail:
     host: smtp.gmail.com
     port: 587
